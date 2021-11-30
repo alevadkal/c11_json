@@ -1,0 +1,31 @@
+{
+    "window.zoomLevel": 0,
+    "editor.renderWhitespace": "all",
+    "editor.renderControlCharacters": true,
+    "workbench.editorAssociations": {},
+    "C_Cpp.clang_format_fallbackStyle": "WebKit",
+    "C_Cpp.clang_format_sortIncludes": false,
+    "[c]": {
+        "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd"
+    },
+    "[cpp]": {
+        "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd"
+    },
+    "C_Cpp.autoAddFileAssociations": false,
+    "C_Cpp.clang_format_path": "/usr/bin/clang-format",
+    "cmake.configureOnOpen": true,
+    "cmake.installPrefix": "build/install",
+    "C_Cpp.intelliSenseEngine": "Disabled",
+    "C_Cpp.autocomplete": "Disabled", // So you don't get autocomplete from both extensions.
+    "C_Cpp.errorSquiggles": "Disabled", // 
+    "clangd.semanticHighlighting": true,
+    "clangd.restartAfterCrash": true,
+    "clangd.onConfigChanged": "restart",
+    "doxdocgen.c.firstLine": "///",
+    "doxdocgen.c.lastLine": "///",
+    "doxdocgen.c.triggerSequence": "///",
+    "doxdocgen.c.commentPrefix": "///",
+    "editor.formatOnPaste": true,
+    "editor.formatOnSave": true,
+    "cmake.parallelJobs": 4,
+}
