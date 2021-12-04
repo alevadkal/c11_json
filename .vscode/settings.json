@@ -1,5 +1,5 @@
 {
-    "window.zoomLevel": 0,
+    "window.zoomLevel": -1,
     "editor.renderWhitespace": "all",
     "editor.renderControlCharacters": true,
     "workbench.editorAssociations": {},
@@ -9,7 +9,7 @@
         "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd"
     },
     "[cpp]": {
-        "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd"
+        "editor.defaultFormatter": "xaver.clang-format"
     },
     "C_Cpp.autoAddFileAssociations": false,
     "C_Cpp.clang_format_path": "/usr/bin/clang-format",
@@ -27,5 +27,7 @@
     "doxdocgen.c.commentPrefix": "///",
     "editor.formatOnPaste": true,
     "editor.formatOnSave": true,
-    "cmake.parallelJobs": 4,
+    "cmake.parallelJobs": 2,
+    "cmake.ctest.parallelJobs": 2,
+    "C_Cpp.formatting": "clangFormat"
 }
