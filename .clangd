@@ -1,2 +1,2 @@
 CompileFlags:
-  Add: [-ferror-limit=0, -Weverifing, -Wno-unused-macros]
+  Add: [-ferror-limit=0, -Weverifing, -Wno-unused-macros, -Wno-unknown-attributes]
