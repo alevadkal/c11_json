@@ -13,6 +13,8 @@ static void log_indent(void)
     for (size_t i = 0; i < indent_cnt; i++) {
         putchar((' ' + (char)i) & 0b01111111);
         putchar('.');
+        putchar('.');
+        putchar('.');
     }
 }
 

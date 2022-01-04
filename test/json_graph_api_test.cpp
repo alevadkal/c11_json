@@ -25,8 +25,8 @@ protected:
     virtual ~json_base()
     {
         log_trace_func();
-        json_deinit(m_object);
         json_deinit(m_child);
+        json_deinit(m_object);
     }
 };
 const char UNEXSISTED[] = "unexisted_key";
@@ -82,10 +82,10 @@ NODE_FIXTURE(not_empty_object, "{" JSON_STR(KEY1) ":" SOME_NUMBER "," JSON_STR(K
         EXPECT_STREQ(expected, method(m_object, key));           \
     }
 
-#define test_node_set(node_type, type, method, key, expected)     \
-    TEST_F(json_##node_type##_node, method##_key_##key##_##type)  \
-    {                                                             \
-        EXPECT_EQ(expected, method(&m_object, get_child(), key)); \
+#define test_node_set(node_type, type, method, key, expected)    \
+    TEST_F(json_##node_type##_node, method##_key_##key##_##type) \
+    {                                                            \
+        EXPECT_EQ(expected, method(m_object, get_child(), key)); \
     }
 
 #define BASE_TESTS(type, type_str, expected_str)                         \
@@ -158,7 +158,7 @@ test_node_set(not_empty_object, negative, json_set_by_key, NEW_KEY, m_object);
     {                                                                             \
         m_child = json_init_from_str(value, nullptr);                             \
         ASSERT_NE(nullptr, m_child);                                              \
-        m_object = method(&m_object, m_child, key);                               \
+        m_object = method(m_object, m_child, key);                                \
         char* str = json_sprint(m_object, 0);                                     \
         EXPECT_STREQ(expected, str);                                              \
         free(str);                                                                \

@@ -28,9 +28,7 @@ static const char* WRONG_STRING_PTR = reinterpret_cast<const char*>(WRONG_POINTE
 static const char** WRONG_STRING_PPTR = reinterpret_cast<const char**>(WRONG_POINTER);
 static size_t* WRONG_SIZE_PTR = reinterpret_cast<size_t*>(WRONG_POINTER);
 static json_t* WRONG_JSON_PTR = reinterpret_cast<json_t*>(WRONG_POINTER);
-static json_t** WRONG_JSON_DPTR = reinterpret_cast<json_t**>(WRONG_POINTER);
-static json_t* JSON_PTR_NULL = nullptr;
-static json_t** JSON_DPTR2NULL = &JSON_PTR_NULL;
+
 class json_nullptr_test : public Test {
 protected:
 };
@@ -90,11 +88,9 @@ json_nullptr_test_1_impl(json_get_by_id, nullptr, 0);
 
 json_nullptr_test_1_impl(json_key, nullptr, 0);
 
-json_nullptr_test_2_impl(json_set_by_id, WRONG_JSON_DPTR, WRONG_JSON_PTR, nullptr, 0);
-json_nullptr_test_2_make_test(json_set_by_id, JSON_DPTR2NULL, WRONG_JSON_PTR, nullptr, 0);
+json_nullptr_test_2_impl(json_set_by_id, WRONG_JSON_PTR, WRONG_JSON_PTR, nullptr, 0);
 
 json_nullptr_test_2_impl(json_get_by_key, WRONG_JSON_PTR, WRONG_STRING_PTR, nullptr);
 
-json_nullptr_test_3_impl(json_set_by_key, WRONG_JSON_DPTR, WRONG_JSON_PTR, WRONG_STRING_PTR, nullptr);
-json_nullptr_test_3_make_test(json_set_by_key, JSON_DPTR2NULL, WRONG_JSON_PTR, WRONG_STRING_PTR, nullptr);
+json_nullptr_test_3_impl(json_set_by_key, WRONG_JSON_PTR, WRONG_JSON_PTR, WRONG_STRING_PTR, nullptr);
 }

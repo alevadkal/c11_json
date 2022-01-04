@@ -5,7 +5,6 @@
 #include <gtest/gtest.h>
 #include <cstdint>
 #include "log.h"
-#include "json_test_json_base_strings.hpp"
 
 namespace json_test {
 

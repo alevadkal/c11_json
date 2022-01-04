@@ -25,6 +25,7 @@ json_t* json_init_from_value(const char* type, const char* value);
 json_t* json_init_from(json_getc_t getc, void* data);
 json_t* json_init_from_file(FILE* file);
 json_t* json_init_from_str(const char* value, const char** endptr);
+json_t* json_copy(json_t* self);
 void json_deinit(json_t* self);
 
 const char* json_get_type(json_t* self);
@@ -32,11 +33,11 @@ const char* json_get_str(json_t* self);
 
 size_t json_size(json_t* self);
 json_t* json_get_by_id(json_t* self, size_t id);
-json_t* json_set_by_id(json_t** self, json_t* value, size_t id);
+json_t* json_set_by_id(json_t* self, json_t* value, size_t id);
 
 const char* json_key(json_t* self, size_t id);
 json_t* json_get_by_key(json_t* self, const char* key);
-json_t* json_set_by_key(json_t** self, json_t* value, const char* key);
+json_t* json_set_by_key(json_t* self, json_t* value, const char* key);
 
 #ifdef __cplusplus
 }
