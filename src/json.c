@@ -67,18 +67,14 @@ json_t node_null = { { NULL }, JSON_TYPE_NULL, 0 };
 json_t node_true = { { NULL }, JSON_TYPE_TRUE, 0 };
 json_t node_false = { { NULL }, JSON_TYPE_FALSE, 0 };
 
-static inline unsigned*
-json_refcnt(json_t* self)
+static inline unsigned json_refcnt(const json_t* self)
 {
-    switch (self->type) {
-    case JSON_TYPE_NULL:
-    case JSON_TYPE_FALSE:
-    case JSON_TYPE_TRUE:
-        return NULL;
-    default:
-        return self->refcnt;
+    if (self->refcnt == NULL) {
+        return 0;
     }
+    return *self->refcnt;
 }
+
 static inline void json_set_root(json_t* self, unsigned value)
 {
     switch (self->type) {
@@ -276,7 +272,7 @@ static char json_get_c_str(const char** str)
 /// GRAPH
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define JSON_FORMAT(node) #node ":%p{%s:%u}{%u}{%zu}", node, type2str(node->type), node->have_root, (json_refcnt(node) ? *json_refcnt(node) : 0), json_size(node)
+#define JSON_FORMAT(node) #node ":%p{%s:%u}{%u}{%zu}", node, type2str(node->type), node->have_root, json_refcnt(node), json_size(node)
 #define json_tmp_t json_t CLEANUP(json_deinit)
 
 void json_deinit(json_t* self);
@@ -343,7 +339,7 @@ void json_deinit(json_t* self)
     } else {
         *self->refcnt -= 1;
         if (*self->refcnt) {
-            log_debug_msg("refcnt:%u", self->refcnt);
+            log_debug_msg("refcnt:%zu", *self->refcnt);
 
         } else {
             log_debug_msg("deinit:" JSON_FORMAT(self));
@@ -402,7 +398,6 @@ json_t* json_copy(json_t* self)
 static json_t* json_copy_array(json_t* self)
 {
     log_trace_func();
-    CHECK_NULL(self);
     json_tmp_t* new = CALLOC(1, sizeof(json_t));
     new->type = self->type;
     new->arr = CALLOC(1, sizeof(json_arr_t));
@@ -424,8 +419,10 @@ static json_t* json_cow_array(json_t* self)
     log_trace_func();
     log_debug_msg(JSON_FORMAT(self));
     if (*self->refcnt == 1) {
+        log_debug_msg("return same");
         return self;
     }
+    log_debug_msg("make copy");
     json_tmp_t* tmp = CHECK_FUNC(json_copy_array(self));
     json_arr_t* self_arr = self->arr;
     self->arr = tmp->arr;
@@ -433,7 +430,7 @@ static json_t* json_cow_array(json_t* self)
     return self;
 }
 
-static json_t* json_elem_detect_cyrcular_ref(json_t* self, json_t* elem)
+static json_t* json_elem_detect_cyrcular_ref(const json_t* self, json_t* elem)
 {
     log_trace_func();
     log_debug_msg(JSON_FORMAT(self));
@@ -448,19 +445,22 @@ static json_t* json_elem_detect_cyrcular_ref(json_t* self, json_t* elem)
             return new_elem;
         }
         json_tmp_t* new_elem = NULL;
-        for (size_t i = 0; i < elem->arr->size; i++) {
-            json_tmp_t* new_elem_node = json_elem_detect_cyrcular_ref(self, elem->arr->data[i]);
-            if (elem->arr->data[i] != new_elem_node) {
+        for (size_t id = 0; id < elem->arr->size; id++) {
+            json_tmp_t* new_elem_node = json_elem_detect_cyrcular_ref(self, elem->arr->data[id]);
+            if (elem->arr->data[id] != new_elem_node) {
                 log_debug_msg("circular ref handling");
                 if (new_elem == NULL) {
                     log_debug_msg("create copy of lelem");
                     new_elem = CHECK_FUNC(json_copy_array(elem));
                     log_debug_msg(JSON_FORMAT(new_elem));
                 }
+                log_debug_msg("id:%zu", id);
                 log_debug_msg(JSON_FORMAT(new_elem_node));
-                json_set_root(elem->arr->data[i], 0);
-                json_deinit(self);
-                elem->arr->data[i] = new_elem_node;
+                json_t* old = elem->arr->data[id];
+                elem->arr->data[id] = new_elem_node;
+                json_set_root(elem->arr->data[id], 1);
+                json_set_root(old, 0);
+                json_deinit(old);
             }
             UNCLEANUP(new_elem_node);
         }
@@ -477,7 +477,7 @@ static json_t* json_elem_detect_cyrcular_ref(json_t* self, json_t* elem)
     return elem;
 }
 
-static json_t* json_elem_copy(json_t* self, json_t* elem)
+static json_t* json_elem_copy(const json_t* self, json_t* elem)
 {
     log_trace_func();
     json_tmp_t* new_elem = CHECK_FUNC(json_elem_detect_cyrcular_ref(self, elem));
@@ -511,7 +511,7 @@ const char* json_get_str(json_t* self)
     }
 }
 
-size_t json_size(json_t* self)
+size_t json_size(const json_t* self)
 {
     if (self == NULL) {
         log_error_msg("self is NULL");
@@ -555,7 +555,7 @@ json_t* json_get_by_id(json_t* self, size_t id)
     return NULL;
 }
 
-const char* json_key(json_t* self, size_t id)
+const char* json_key(const json_t* self, size_t id)
 {
     log_trace_func();
     CHECK_NULL(self);

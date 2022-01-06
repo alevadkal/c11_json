@@ -46,6 +46,7 @@ const char NEW_KEY[] = "new_key";
         {                                                   \
             log_trace_func();                               \
             m_object = json_init_from_str(string, nullptr); \
+            ASSERT_NE(nullptr, m_object);                   \
         }                                                   \
     }
 
@@ -153,16 +154,53 @@ test_node_get(not_empty_object, negative, json_get_by_key, KEY2, SOME_STRING);
 test_node_get(not_empty_object, negative, json_get_by_key, UNEXSISTED, nullptr);
 test_node_set(not_empty_object, negative, json_set_by_key, NEW_KEY, m_object);
 
-#define test_node_set_and_check_result(node_type, method, key, value, expected)   \
-    TEST_F(json_##node_type##_node, method##_key_##key##_elem_##value##_positive) \
-    {                                                                             \
-        m_child = json_init_from_str(value, nullptr);                             \
-        ASSERT_NE(nullptr, m_child);                                              \
-        m_object = method(m_object, m_child, key);                                \
-        char* str = json_sprint(m_object, 0);                                     \
-        EXPECT_STREQ(expected, str);                                              \
-        free(str);                                                                \
+#define test_node_set_and_check_result(node_type, method, key, value, expected)                         \
+    TEST_F(json_##node_type##_node, method##_key_##key##_elem_##value##_positive)                       \
+    {                                                                                                   \
+        m_child = json_init_from_str(value, nullptr);                                                   \
+        ASSERT_NE(nullptr, m_child);                                                                    \
+        m_object = method(m_object, m_child, key);                                                      \
+        char* str = json_sprint(m_object, 0);                                                           \
+        EXPECT_STREQ(expected, str);                                                                    \
+        free(str);                                                                                      \
+    }                                                                                                   \
+    TEST_F(json_##node_type##_node, copy_not_affected_##method##_key_##key##_elem_##value##_positive)   \
+    {                                                                                                   \
+        auto copy = json_copy(m_object);                                                                \
+        auto copy_str = json_sprint(copy, 0);                                                           \
+        {                                                                                               \
+            m_child = json_init_from_str(value, nullptr);                                               \
+            ASSERT_NE(nullptr, m_child);                                                                \
+            m_object = method(m_object, m_child, key);                                                  \
+            char* str = json_sprint(m_object, 0);                                                       \
+            EXPECT_STREQ(expected, str);                                                                \
+            free(str);                                                                                  \
+        }                                                                                               \
+        char* str = json_sprint(copy, 0);                                                               \
+        EXPECT_STREQ(str, copy_str);                                                                    \
+        free(copy_str);                                                                                 \
+        free(str);                                                                                      \
+        json_deinit(copy);                                                                              \
+    }                                                                                                   \
+    TEST_F(json_##node_type##_node, object_not_affected_##method##_key_##key##_elem_##value##_positive) \
+    {                                                                                                   \
+        auto copy = json_copy(m_object);                                                                \
+        auto object_str = json_sprint(copy, 0);                                                         \
+        {                                                                                               \
+            m_child = json_init_from_str(value, nullptr);                                               \
+            ASSERT_NE(nullptr, m_child);                                                                \
+            copy = method(copy, m_child, key);                                                          \
+            char* str = json_sprint(copy, 0);                                                           \
+            EXPECT_STREQ(expected, str);                                                                \
+            free(str);                                                                                  \
+        }                                                                                               \
+        auto str = json_sprint(m_object, 0);                                                            \
+        EXPECT_STREQ(str, object_str);                                                                  \
+        free(object_str);                                                                               \
+        free(str);                                                                                      \
+        json_deinit(copy);                                                                              \
     }
+
 #define NULL_STR "null"
 test_node_set_and_check_result(empty_array, json_set_by_id, 0, NULL_STR, "[" NULL_STR "]");
 #define ANY_DATA "{\"key\":[123,false,{},[]]}"
@@ -172,5 +210,4 @@ test_node_set_and_check_result(empty_object, json_set_by_key, KEY2, ANY_DATA, "{
 test_node_set_and_check_result(not_empty_array, json_set_by_id, 0, NULL_STR, "[" NULL_STR "," JSON_STR(SOME_STRING) "]");
 test_node_set_and_check_result(not_empty_array, json_set_by_id, 1, NULL_STR, "[" SOME_NUMBER "," NULL_STR "]");
 test_node_set_and_check_result(not_empty_array, json_set_by_id, 2, NULL_STR, "[" SOME_NUMBER "," JSON_STR(SOME_STRING) "," NULL_STR "]");
-
 }
