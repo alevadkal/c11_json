@@ -276,7 +276,7 @@ static char json_get_c_str(const char** str)
 /// GRAPH
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define JSON_FORMAT(node) #node ":%p{%s:%u}{%u}", node, type2str(node->type), node->have_root, (json_refcnt(node) ? *json_refcnt(node) : 0)
+#define JSON_FORMAT(node) #node ":%p{%s:%u}{%u}{%zu}", node, type2str(node->type), node->have_root, (json_refcnt(node) ? *json_refcnt(node) : 0), json_size(node)
 #define json_tmp_t json_t CLEANUP(json_deinit)
 
 void json_deinit(json_t* self);
@@ -408,9 +408,11 @@ static json_t* json_copy_array(json_t* self)
     new->arr = CALLOC(1, sizeof(json_arr_t));
     *new->refcnt = 1;
     new->arr->data = CALLOC(self->arr->size, sizeof(typeof(self->arr->data[0])));
+    new->arr->size = self->arr->size;
     log_debug_msg(JSON_FORMAT(new));
     for (size_t id = 0; id < self->arr->size; id++) {
         new->arr->data[id] = CHECK_FUNC_ERRNO(json_copy(self->arr->data[id]));
+        json_set_root(new->arr->data[id], 1);
         log_debug_msg("set:id:%zu", id);
         log_debug_msg(JSON_FORMAT(new->arr->data[id]));
     }
@@ -511,26 +513,22 @@ const char* json_get_str(json_t* self)
 
 size_t json_size(json_t* self)
 {
-    log_trace_func();
     if (self == NULL) {
         log_error_msg("self is NULL");
         return 0;
     }
-    log_debug_msg(JSON_FORMAT(self));
-    size_t ret = 0;
-    switch (self->type) {
-    case JSON_TYPE_ARRAY:
-        ret = self->arr->size;
-        break;
-    case JSON_TYPE_OBJECT:
-        ret = self->arr->size / 2;
-        break;
-    default:
-        log_error_msg("not supported for %s type", type2str(self->type));
+    if (self->refcnt == NULL) {
         return 0;
     }
-    log_debug_msg("ret:%zu", ret);
-    return ret;
+    switch (self->type) {
+    case JSON_TYPE_ARRAY:
+        return self->arr->size;
+    case JSON_TYPE_OBJECT:
+        return self->arr->size / 2;
+    default:
+        break;
+    }
+    return 0;
 }
 
 json_t* json_get_by_id(json_t* self, size_t id)
@@ -615,14 +613,14 @@ static json_t* json_set_by_id_internal(json_t* self, json_t* elem, size_t id)
         log_debug_msg("increase array size");
         self->arr->data = REALLOC(self->arr->data, (self->arr->size + 1) * sizeof(typeof(self->arr->data[0])));
         self->arr->data[self->arr->size++] = &node_null;
-    } else {
-        json_set_root(self->arr->data[id], 0);
-        json_deinit(self->arr->data[id]);
     }
+    json_t* old = self->arr->data[id];
     log_debug_msg("set:%zu", id);
     log_debug_msg(JSON_FORMAT(new_elem));
     self->arr->data[id] = UNCLEANUP(new_elem);
     json_set_root(self->arr->data[id], 1);
+    json_set_root(old, 0);
+    json_deinit(old);
     return self;
 }
 
