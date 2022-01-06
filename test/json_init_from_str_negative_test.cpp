@@ -173,4 +173,6 @@ static const char JSON_WRONG_OBJECT_KEY_AND_OBJECT_AND_COMMA[] = "{\"key\":{},}"
 json_init_from_str_negative_tests(JSON_WRONG_OBJECT_KEY_AND_OBJECT_AND_COMMA, "}");
 static const char JSON_WRONG_OBJECT_MULTIOBJECT_AND_COMMA[] = R"JSON({"o":{},"a":[],"s":"qwerty","v":12345,"t":true,"f":false,"n":null,})JSON";
 json_init_from_str_negative_tests(JSON_WRONG_OBJECT_MULTIOBJECT_AND_COMMA, "}");
+static const char JSON_WRONG_OBJECT_ERROR_DURING_VALUE_PARSE[] = "{\"key\":0.}";
+json_init_from_str_negative_tests(JSON_WRONG_OBJECT_ERROR_DURING_VALUE_PARSE, "}");
 }

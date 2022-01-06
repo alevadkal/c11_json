@@ -67,7 +67,6 @@ TEST_F(json_graph_ref_test, create_double_insert_positive)
     EXPECT_JSON_EQ(root, "[null,[null],[null,[null]]]");
     json_deinit(root);
 }
-/*
 TEST_F(json_graph_ref_test, deep_ref)
 {
     json_t* root = json_init_from_str("[[null]]", nullptr);
@@ -75,7 +74,7 @@ TEST_F(json_graph_ref_test, deep_ref)
     EXPECT_JSON_EQ(root, "[[[[null]]]]");
     json_deinit(root);
 }
-*/
+
 /*
 TEST_F(json_graph_ref_test, create_simple_circular_ref)
 {

@@ -55,7 +55,6 @@ add_compile_options(
     -Wdisabled-optimization
     -Wstack-protector
     -Woverlength-strings
-    -O2
     -ggdb3
     -pipe
 )

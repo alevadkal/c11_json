@@ -67,15 +67,19 @@ json_t node_null = { { NULL }, JSON_TYPE_NULL, 0 };
 json_t node_true = { { NULL }, JSON_TYPE_TRUE, 0 };
 json_t node_false = { { NULL }, JSON_TYPE_FALSE, 0 };
 
-static inline unsigned json_refcnt(const json_t* self)
+static unsigned json_refcnt(const json_t* self)
 {
-    if (self->refcnt == NULL) {
-        return 0;
+    switch (self->type) {
+    case JSON_TYPE_ARRAY:
+    case JSON_TYPE_OBJECT:
+        return self->arr->refcnt;
+    default:
+        break;
     }
-    return *self->refcnt;
+    return 0;
 }
 
-static inline void json_set_root(json_t* self, unsigned value)
+static void json_set_root(json_t* self, unsigned value)
 {
     switch (self->type) {
     case JSON_TYPE_NULL:
@@ -87,21 +91,17 @@ static inline void json_set_root(json_t* self, unsigned value)
     }
 }
 
-#define LOGABLE 1
-
 #define INSERT_PARAM_BEFORE(format, param, format2, ...) format format2, param __VA_OPT__(, ) __VA_ARGS__
 
-#define CHECK_FUNC(call, ...) ({                                                            \
-    typeof(call) CHECK_FUNC_result = (call);                                                \
-    if (CHECK_FUNC_result == NULL) {                                                        \
-        if (LOGABLE) {                                                                      \
-            char CHECK_FUNC_function[] = #call;                                             \
-            *strchr(CHECK_FUNC_function, '(') = 0;                                          \
-            log_error_msg(INSERT_PARAM_BEFORE("%s", CHECK_FUNC_function, ":" __VA_ARGS__)); \
-        }                                                                                   \
-        return NULL;                                                                        \
-    }                                                                                       \
-    CHECK_FUNC_result;                                                                      \
+#define CHECK_FUNC(call, ...) ({                                                        \
+    typeof(call) CHECK_FUNC_result = (call);                                            \
+    if (CHECK_FUNC_result == NULL) {                                                    \
+        char CHECK_FUNC_function[] = #call;                                             \
+        *strchr(CHECK_FUNC_function, '(') = 0;                                          \
+        log_error_msg(INSERT_PARAM_BEFORE("%s", CHECK_FUNC_function, ":" __VA_ARGS__)); \
+        return NULL;                                                                    \
+    }                                                                                   \
+    CHECK_FUNC_result;                                                                  \
 })
 
 #define CHECK_FUNC_ERRNO(call) ({                       \
@@ -430,6 +430,19 @@ static json_t* json_cow_array(json_t* self)
     return self;
 }
 
+static void json_set_force(json_t* self, json_t* elem, size_t id)
+{
+    log_trace_func();
+    log_debug_msg(JSON_FORMAT(self));
+    log_debug_msg(JSON_FORMAT(elem));
+    log_debug_msg("id:%zu", id);
+    json_t* old = self->arr->data[id];
+    self->arr->data[id] = elem;
+    json_set_root(self->arr->data[id], 1);
+    json_set_root(old, 0);
+    json_deinit(old);
+}
+
 static json_t* json_elem_detect_cyrcular_ref(const json_t* self, json_t* elem)
 {
     log_trace_func();
@@ -450,17 +463,11 @@ static json_t* json_elem_detect_cyrcular_ref(const json_t* self, json_t* elem)
             if (elem->arr->data[id] != new_elem_node) {
                 log_debug_msg("circular ref handling");
                 if (new_elem == NULL) {
-                    log_debug_msg("create copy of lelem");
+                    log_debug_msg("create copy of elem");
                     new_elem = CHECK_FUNC(json_copy_array(elem));
                     log_debug_msg(JSON_FORMAT(new_elem));
                 }
-                log_debug_msg("id:%zu", id);
-                log_debug_msg(JSON_FORMAT(new_elem_node));
-                json_t* old = elem->arr->data[id];
-                elem->arr->data[id] = new_elem_node;
-                json_set_root(elem->arr->data[id], 1);
-                json_set_root(old, 0);
-                json_deinit(old);
+                json_set_force(new_elem, new_elem_node, id);
             }
             UNCLEANUP(new_elem_node);
         }
@@ -473,7 +480,7 @@ static json_t* json_elem_detect_cyrcular_ref(const json_t* self, json_t* elem)
     default:
         break;
     }
-    log_debug_msg("return " JSON_FORMAT(elem));
+    log_debug_msg("return same " JSON_FORMAT(elem));
     return elem;
 }
 
@@ -614,13 +621,7 @@ static json_t* json_set_by_id_internal(json_t* self, json_t* elem, size_t id)
         self->arr->data = REALLOC(self->arr->data, (self->arr->size + 1) * sizeof(typeof(self->arr->data[0])));
         self->arr->data[self->arr->size++] = &node_null;
     }
-    json_t* old = self->arr->data[id];
-    log_debug_msg("set:%zu", id);
-    log_debug_msg(JSON_FORMAT(new_elem));
-    self->arr->data[id] = UNCLEANUP(new_elem);
-    json_set_root(self->arr->data[id], 1);
-    json_set_root(old, 0);
-    json_deinit(old);
+    json_set_force(self, UNCLEANUP(new_elem), id);
     return self;
 }
 
