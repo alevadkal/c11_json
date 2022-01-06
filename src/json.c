@@ -408,8 +408,11 @@ static json_t* json_copy_array(json_t* self)
     new->arr = CALLOC(1, sizeof(json_arr_t));
     *new->refcnt = 1;
     new->arr->data = CALLOC(self->arr->size, sizeof(typeof(self->arr->data[0])));
-    for (size_t i = 0; i < self->arr->size; i++) {
-        new->arr->data[i] = CHECK_FUNC_ERRNO(json_copy(self->arr->data[i]));
+    log_debug_msg(JSON_FORMAT(new));
+    for (size_t id = 0; id < self->arr->size; id++) {
+        new->arr->data[id] = CHECK_FUNC_ERRNO(json_copy(self->arr->data[id]));
+        log_debug_msg("set:id:%zu", id);
+        log_debug_msg(JSON_FORMAT(new->arr->data[id]));
     }
     return UNCLEANUP(new);
 }
@@ -437,15 +440,22 @@ static json_t* json_elem_detect_cyrcular_ref(json_t* self, json_t* elem)
     case JSON_TYPE_ARRAY:
     case JSON_TYPE_OBJECT: {
         if (elem->refcnt == self->refcnt) {
-            return CHECK_FUNC(json_copy_array(elem));
+            log_debug_msg("circular ref found");
+            json_t* new_elem = CHECK_FUNC(json_copy_array(elem));
+            log_debug_msg("return " JSON_FORMAT(new_elem));
+            return new_elem;
         }
         json_tmp_t* new_elem = NULL;
         for (size_t i = 0; i < elem->arr->size; i++) {
             json_tmp_t* new_elem_node = json_elem_detect_cyrcular_ref(self, elem->arr->data[i]);
             if (elem->arr->data[i] != new_elem_node) {
+                log_debug_msg("circular ref handling");
                 if (new_elem == NULL) {
+                    log_debug_msg("create copy of lelem");
                     new_elem = CHECK_FUNC(json_copy_array(elem));
+                    log_debug_msg(JSON_FORMAT(new_elem));
                 }
+                log_debug_msg(JSON_FORMAT(new_elem_node));
                 json_set_root(elem->arr->data[i], 0);
                 json_deinit(self);
                 elem->arr->data[i] = new_elem_node;
@@ -453,6 +463,7 @@ static json_t* json_elem_detect_cyrcular_ref(json_t* self, json_t* elem)
             UNCLEANUP(new_elem_node);
         }
         if (new_elem) {
+            log_debug_msg("return " JSON_FORMAT(new_elem));
             return UNCLEANUP(new_elem);
         }
         break;
@@ -460,6 +471,7 @@ static json_t* json_elem_detect_cyrcular_ref(json_t* self, json_t* elem)
     default:
         break;
     }
+    log_debug_msg("return " JSON_FORMAT(elem));
     return elem;
 }
 
@@ -592,17 +604,23 @@ json_t* json_get_by_key(json_t* self, const char* key)
 static json_t* json_set_by_id_internal(json_t* self, json_t* elem, size_t id)
 {
     log_trace_func();
+    log_debug_msg(JSON_FORMAT(self));
+    log_debug_msg(JSON_FORMAT(elem));
     log_debug_msg("id:%zu", id);
-    self = CHECK_FUNC(json_cow_array(self));
+    CHECK_FUNC(json_cow_array(self));
     json_tmp_t* new_elem = CHECK_FUNC(json_elem_copy(self, elem));
+    log_debug_msg(JSON_FORMAT(self));
+    log_debug_msg(JSON_FORMAT(new_elem));
     if (id == self->arr->size) {
         log_debug_msg("increase array size");
         self->arr->data = REALLOC(self->arr->data, (self->arr->size + 1) * sizeof(typeof(self->arr->data[0])));
-        self->arr->size++;
+        self->arr->data[self->arr->size++] = &node_null;
     } else {
         json_set_root(self->arr->data[id], 0);
         json_deinit(self->arr->data[id]);
     }
+    log_debug_msg("set:%zu", id);
+    log_debug_msg(JSON_FORMAT(new_elem));
     self->arr->data[id] = UNCLEANUP(new_elem);
     json_set_root(self->arr->data[id], 1);
     return self;

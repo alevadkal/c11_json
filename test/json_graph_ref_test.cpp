@@ -26,13 +26,21 @@ TEST_F(json_graph_ref_test, deinit_no_effect_for_objects_have_root_positive)
     free(str);
     json_deinit(obj);
 }
-
 TEST_F(json_graph_ref_test, create_simple_circular_to_empty_array_positive)
 {
     json_t* root = json_init_from_str("[]", nullptr);
     ASSERT_NE(nullptr, json_set_by_id(root, root, 0));
     char* str = json_sprint(root, 0);
     EXPECT_STREQ(str, "[[]]");
+    free(str);
+    json_deinit(root);
+}
+TEST_F(json_graph_ref_test, create_simple_circular_to_array_with_null_positive)
+{
+    json_t* root = json_init_from_str("[null]", nullptr);
+    ASSERT_NE(nullptr, json_set_by_id(root, root, 0));
+    char* str = json_sprint(root, 0);
+    EXPECT_STREQ(str, "[[null]]");
     free(str);
     json_deinit(root);
 }
