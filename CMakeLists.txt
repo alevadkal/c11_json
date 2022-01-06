@@ -29,6 +29,7 @@ add_executable(json_test
     test/json_init_from_str_negative_test.cpp
     test/json_init_from_file_test.cpp
     test/json_graph_api_test.cpp
+    test/json_graph_ref_test.cpp
     $<TARGET_OBJECTS:json_obj>
 )
 

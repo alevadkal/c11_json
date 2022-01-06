@@ -336,7 +336,8 @@ void json_deinit(json_t* self)
         break;
     }
     if (self->have_root != 0) {
-        log_debug_msg("node is a part of another node. data deinit not requared");
+        log_debug_msg("node is a part of another node. deinit not requared");
+        return;
     } else if (self->refcnt == NULL) {
         log_debug_msg("partially inialaysed. data deinit not requared");
     } else {
