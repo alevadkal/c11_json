@@ -1,6 +1,8 @@
 /// Copyright © Alexander Kaluzhnyy
 #include <gmock/gmock.h>
 
+#define real(name) __real_##name
+
 class system_mock {
 private:
     static system_mock* thiz;
@@ -15,8 +17,13 @@ public:
     system_mock();
     static system_mock* instance();
     ~system_mock();
-    bool VerifyAndClear()
-    {
-        return ::testing::Mock::VerifyAndClear(this);
-    }
+    bool VerifyAndClear();
+    bool VerifyAndClearExpectations();
 };
+
+extern "C" {
+void* real(calloc)(size_t nmemb, size_t size);
+void* real(realloc)(void* ptr, size_t size);
+char* real(strdup)(const char* s);
+void real(free)(void*);
+}

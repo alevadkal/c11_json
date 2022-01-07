@@ -8,25 +8,25 @@
 #include "log.h"
 
 #define wrap(name) __wrap_##name
-#define real(name) __real_##name
 
 extern "C" {
-
 void* wrap(calloc)(size_t nmemb, size_t size);
-void* real(calloc)(size_t nmemb, size_t size);
 void* wrap(realloc)(void* ptr, size_t size);
-void* real(realloc)(void* ptr, size_t size);
 char* wrap(strdup)(const char* s);
-char* real(strdup)(const char* s);
 void wrap(free)(void*);
-void real(free)(void*);
 }
 
-using ::testing::_;
-using ::testing::Invoke;
+using namespace ::testing;
 
-system_mock* system_mock::thiz
-    = nullptr;
+static void setup_default_behaviour(system_mock* mock)
+{
+    ON_CALL(*mock, calloc(_, _)).WillByDefault(Invoke(real(calloc)));
+    ON_CALL(*mock, realloc(_, _)).WillByDefault(Invoke(real(realloc)));
+    ON_CALL(*mock, strdup(_)).WillByDefault(Invoke(real(strdup)));
+    ON_CALL(*mock, free(_)).WillByDefault(Invoke(real(free)));
+}
+
+system_mock* system_mock::thiz = nullptr;
 
 system_mock::system_mock()
 {
@@ -34,12 +34,26 @@ system_mock::system_mock()
     if (thiz) {
         throw std::runtime_error("class already have instance!");
     }
-    ON_CALL(*this, calloc(_, _)).WillByDefault(Invoke(real(calloc)));
-    ON_CALL(*this, realloc(_, _)).WillByDefault(Invoke(real(realloc)));
-    ON_CALL(*this, strdup(_)).WillByDefault(Invoke(real(strdup)));
-    ON_CALL(*this, free(_)).WillByDefault(Invoke(real(free)));
+    setup_default_behaviour(this);
     thiz = this;
 }
+
+bool system_mock::VerifyAndClear()
+{
+    log_trace_func();
+    auto ret = Mock::VerifyAndClear(this);
+    setup_default_behaviour(this);
+    return ret;
+}
+
+bool system_mock::VerifyAndClearExpectations()
+{
+    log_trace_func();
+    auto ret = Mock::VerifyAndClearExpectations(this);
+    setup_default_behaviour(this);
+    return ret;
+}
+
 system_mock* system_mock::instance()
 {
     return system_mock::thiz;
