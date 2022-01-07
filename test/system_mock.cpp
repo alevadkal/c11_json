@@ -65,28 +65,24 @@ system_mock::~system_mock()
     thiz = nullptr;
 }
 
-#define mock_call(call) (system_mock::instance() ? system_mock::instance()->call : __real_##call)
+#define mock_call(call) (system_mock::instance() ? ({log_trace_func();system_mock::instance()->call; }) : __real_##call)
 
 void* wrap(calloc)(size_t nmemb, size_t size)
 {
-    log_trace_func();
     return mock_call(calloc(nmemb, size));
 }
 
 void* wrap(realloc)(void* ptr, size_t size)
 {
-    log_trace_func();
     return mock_call(realloc(ptr, size));
 }
 
 char* wrap(strdup)(const char* s)
 {
-    log_trace_func();
     return mock_call(strdup(s));
 }
 
 void wrap(free)(void* ptr)
 {
-    log_trace_func();
     mock_call(free(ptr));
 }
