@@ -22,6 +22,25 @@ target_link_libraries(json PUBLIC json_obj)
 
 enable_testing()
 
+add_library(system_mock SHARED
+    test/system_mock.cpp
+    src/log.c
+)
+
+
+target_link_libraries(system_mock PUBLIC
+    gmock
+)
+
+target_link_options(system_mock PUBLIC
+    "-Wl,--wrap=calloc"
+    "-Wl,--wrap=realloc"
+    "-Wl,--wrap=strdup"
+    "-Wl,--wrap=free"
+)
+
+target_include_directories(system_mock PUBLIC test src)
+
 add_executable(json_test
     test/json_nullptr_test.cpp
     test/json_init_from_value_test.cpp
@@ -30,15 +49,17 @@ add_executable(json_test
     test/json_init_from_file_test.cpp
     test/json_graph_api_test.cpp
     test/json_graph_ref_test.cpp
+    test/json_graph_system_test.cpp
     $<TARGET_OBJECTS:json_obj>
 )
 
 target_link_libraries(json_test PUBLIC
-    json_obj
+    json
     gtest
     gtest_main
+    system_mock
 )
-target_include_directories(json_test PUBLIC src include)
+target_include_directories(json_test PUBLIC src include test)
 add_test(
     NAME json_test_valgrind
     COMMAND valgrind
@@ -51,4 +72,5 @@ add_test(
         --log-fd=1 
          $<TARGET_FILE:json_test>
 )
+
 gtest_discover_tests(json_test)
