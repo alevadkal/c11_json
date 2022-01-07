@@ -11,10 +11,10 @@ static int state = 0;
 static void log_indent(void)
 {
     for (size_t i = 0; i < indent_cnt; i++) {
-        putchar((' ' + (char)i) & 0b01111111);
-        putchar('.');
-        putchar('.');
-        putchar('.');
+        putchar(' ');
+        putchar(' ');
+        putchar(' ');
+        putchar(' ');
     }
 }
 
@@ -52,7 +52,7 @@ void log_trace_start(const char* function, const char* file, int line)
         putchar('\n');
     }
     log_indent();
-    printf("\e[1m%s\e[0m(%s:%i){", function, file, line - 2);
+    printf("%s(%s:%i){", function, file, line - 2);
     fflush(stdout);
     state = 0;
     indent_cnt++;

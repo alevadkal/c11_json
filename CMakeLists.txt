@@ -33,6 +33,7 @@ target_link_libraries(system_mock PUBLIC
 )
 
 target_link_options(system_mock PUBLIC
+    "-Wl,--wrap=malloc"
     "-Wl,--wrap=calloc"
     "-Wl,--wrap=realloc"
     "-Wl,--wrap=strdup"
@@ -69,6 +70,7 @@ add_test(
         --leak-check=full
         --show-leak-kinds=all
         --num-callers=100
+        --trace-children=yes
         --log-fd=1 
          $<TARGET_FILE:json_test>
 )

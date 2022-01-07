@@ -10,18 +10,18 @@ private:
     void operator=(const system_mock&) = delete;
 
 public:
-    MOCK_METHOD(void*, calloc, (size_t __nmemb, size_t __size));
-    MOCK_METHOD(void*, realloc, (void* __ptr, size_t __size));
-    MOCK_METHOD(char*, strdup, (const char* __s));
+    MOCK_METHOD(void*, malloc, (size_t size));
+    MOCK_METHOD(void*, calloc, (size_t nmemb, size_t size));
+    MOCK_METHOD(void*, realloc, (void* ptr, size_t size));
+    MOCK_METHOD(char*, strdup, (const char* s));
     MOCK_METHOD(void, free, (void*));
     system_mock();
     static system_mock* instance();
     ~system_mock();
-    bool VerifyAndClear();
-    bool VerifyAndClearExpectations();
 };
 
 extern "C" {
+void* real(malloc)(size_t size);
 void* real(calloc)(size_t nmemb, size_t size);
 void* real(realloc)(void* ptr, size_t size);
 char* real(strdup)(const char* s);

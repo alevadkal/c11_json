@@ -15,7 +15,7 @@ void log_trace_start(const char* function, const char* file, int line);
 
 #define log_msg(format, ...) log_msg_internal(__LOG_FILE__, __LINE__, format, ##__VA_ARGS__)
 
-#define log_error_msg(format, ...) log_msg("\e[31merror\e[0m:" format, ##__VA_ARGS__)
+#define log_error_msg(format, ...) log_msg("error:" format, ##__VA_ARGS__)
 
 #define log_debug_msg(format, ...) log_msg("debug:" format, ##__VA_ARGS__)
 

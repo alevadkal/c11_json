@@ -69,6 +69,9 @@ json_t node_false = { { NULL }, JSON_TYPE_FALSE, 0 };
 
 static unsigned json_refcnt(const json_t* self)
 {
+    if (self->refcnt == NULL) {
+        return 0;
+    }
     switch (self->type) {
     case JSON_TYPE_ARRAY:
     case JSON_TYPE_OBJECT:
@@ -337,7 +340,7 @@ void json_deinit(json_t* self)
     } else if (self->refcnt == NULL) {
         log_debug_msg("partially inialaysed. data deinit not requared");
     } else {
-        *self->refcnt -= 1;
+        *self->refcnt = *self->refcnt ? *self->refcnt - 1 : 0;
         if (*self->refcnt) {
             log_debug_msg("refcnt:%zu", *self->refcnt);
 
