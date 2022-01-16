@@ -22,14 +22,14 @@ protected:
 
     ~json_system_test()
     {
-        json_deinit(m_object);
+        json_deinit(&m_object);
     }
 };
 
-#define JSON_STREQ(object, str) ({              \
-    auto object##_str = json_sprint(object, 0); \
-    EXPECT_STREQ(object##_str, str);            \
-    free(object##_str);                         \
+#define JSON_STREQ(object, str) ({            \
+    auto actual_str = json_sprint(object, 0); \
+    EXPECT_STREQ(actual_str, str);            \
+    free(actual_str);                         \
 })
 
 #define system_test_base(function, system_func_name, system_func_params, string, ...) \
@@ -39,7 +39,7 @@ protected:
         {                                                                             \
             auto check = function(string, ##__VA_ARGS__);                             \
             ASSERT_NE(check, nullptr);                                                \
-            json_deinit(check);                                                       \
+            json_deinit(&check);                                                      \
         }                                                                             \
         for (int i = 0; true; i++) {                                                  \
             NiceMock<system_mock> m_mock;                                             \
@@ -59,7 +59,7 @@ protected:
                 break;                                                                \
             }                                                                         \
         }                                                                             \
-        JSON_STREQ(m_object, string);                                                 \
+        JSON_STREQ(&m_object, string);                                                \
     }
 
 #define system_test(function, string, ...)                              \

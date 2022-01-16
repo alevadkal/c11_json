@@ -16,7 +16,7 @@ protected:
     void TearDown() override
     {
         log_trace_func();
-        json_deinit(object);
+        json_deinit(&object);
     }
 };
 
@@ -31,11 +31,11 @@ protected:
         object                                                                                        \
             = json_init_from_value(type, value);                                                      \
         ASSERT_NE(nullptr, object);                                                                   \
-        ASSERT_STREQ(type, json_get_type(object));                                                    \
+        ASSERT_STREQ(type, json_get_type(&object));                                                   \
         if (strcmp(type, JSON_ARRAY) || strcmp(type, JSON_OBJECT)) {                                  \
-            EXPECT_STREQ(expected, json_get_str(object));                                             \
+            EXPECT_STREQ(expected, json_get_str(&object));                                            \
         } else {                                                                                      \
-            EXPECT_EQ(nullptr, json_get_str(object));                                                 \
+            EXPECT_EQ(nullptr, json_get_str(&object));                                                \
         }                                                                                             \
     }
 

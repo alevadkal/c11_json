@@ -30,9 +30,9 @@ protected:
         EXPECT_STREQ(m_out_expected, m_out_second);
 
         free(m_out_second);
-        json_deinit(m_object_second);
+        json_deinit(&m_object_second);
         free(m_out);
-        json_deinit(m_object);
+        json_deinit(&m_object);
     }
 };
 
@@ -59,9 +59,9 @@ protected:
         log_trace_func();                                                             \
         m_out_expected = str;                                                         \
         m_object = json_init_from_str(str, nullptr);                                  \
-        m_out = json_sprint(m_object, 0);                                             \
+        m_out = json_sprint(&m_object, 0);                                            \
         m_object_second = json_init_from_str(m_out, nullptr);                         \
-        m_out_second = json_sprint(m_object_second, 0);                               \
+        m_out_second = json_sprint(&m_object_second, 0);                              \
     }
 
 #define json_init_from_str_positive_tests_impl_2(str, expected)                  \
@@ -71,9 +71,9 @@ protected:
         m_out_expected = expected;                                               \
         m_endptr_expected = "";                                                  \
         m_object = json_init_from_str(str, &m_endptr);                           \
-        m_out = json_sprint(m_object, 0);                                        \
+        m_out = json_sprint(&m_object, 0);                                       \
         m_object_second = json_init_from_str(m_out, &m_endptr_second);           \
-        m_out_second = json_sprint(m_object_second, 0);                          \
+        m_out_second = json_sprint(&m_object_second, 0);                         \
     }
 
 #define json_init_from_str_positive_tests_impl_1(str) json_init_from_str_positive_tests_impl_2(str, str)
