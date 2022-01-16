@@ -16,6 +16,8 @@ typedef struct writer_t {
     void* data;
 } writer_t;
 
+#define JSON_FORMAT(node) #node ":%p{%s}{size:%zu}", *(node), json_get_type(node), json_size(node)
+
 static int put_c(writer_t* self, char c)
 {
     self->print_cnt++;
@@ -112,11 +114,11 @@ static int put_indent(writer_t* writer, int change)
 #define JSON_KEY(self, id) HANDLE_NULL_ERROR(json_key(self, id), "json_key() return NULL")
 #define JSON_GET_BY_ID(self, id) HANDLE_NULL_ERROR(json_get_by_id(self, id), "json_get_by_id() return NULL")
 
-static int json_print_internal(json_t* self, writer_t* writer)
+static int json_print_internal(json_t** self, writer_t* writer)
 {
     log_trace_func();
+    log_debug_msg(JSON_FORMAT(self));
     const char* type = json_get_type(self);
-    log_debug_msg("Value type is '%s'", type);
     if (type != JSON_OBJECT && type != JSON_ARRAY) {
         log_debug_msg("Object not container. Get only value");
         const char* value = JSON_GET_STR(self);
@@ -137,7 +139,7 @@ static int json_print_internal(json_t* self, writer_t* writer)
                 PUT_JSON_S(writer, JSON_KEY(self, i));
                 PUT_C(writer, ':');
             }
-            json_t* node = JSON_GET_BY_ID(self, i);
+            json_t** node = JSON_GET_BY_ID(self, i);
             if (json_print_internal(node, writer) != 0) {
                 log_error_msg("json_print_internal() return error");
                 return -1;
@@ -149,7 +151,7 @@ static int json_print_internal(json_t* self, writer_t* writer)
     return 0;
 }
 
-ssize_t json_uniprint(json_t* self, size_t indent, json_putchar_t putchar, void* data)
+ssize_t json_uniprint(json_t** self, size_t indent, json_putchar_t putchar, void* data)
 {
     log_trace_func();
     writer_t writer;
@@ -163,9 +165,9 @@ ssize_t json_uniprint(json_t* self, size_t indent, json_putchar_t putchar, void*
     }
     return writer.print_cnt;
 }
-ssize_t json_fprint(json_t* self, size_t indent, FILE* file);
+ssize_t json_fprint(json_t** self, size_t indent, FILE* file);
 
-char* json_sprint(json_t* self, size_t indent)
+char* json_sprint(json_t** self, size_t indent)
 {
     log_trace_func();
     if (self == NULL) {
@@ -192,7 +194,7 @@ char* json_sprint(json_t* self, size_t indent)
     return str;
 }
 
-ssize_t json_fprint(json_t* self, size_t indent, FILE* file)
+ssize_t json_fprint(json_t** self, size_t indent, FILE* file)
 {
     log_trace_func();
     return json_uniprint(self, indent, (json_putchar_t)writer_putc_f, file);

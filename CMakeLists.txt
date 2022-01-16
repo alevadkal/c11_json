@@ -71,7 +71,7 @@ add_test(
         --show-leak-kinds=all
         --num-callers=100
         --trace-children=yes
-        --log-fd=1 
+        --log-fd=1
          $<TARGET_FILE:json_test>
 )
 

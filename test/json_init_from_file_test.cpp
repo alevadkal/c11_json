@@ -25,7 +25,7 @@ protected:
             fclose(m_fout);
         }
         free(m_out);
-        json_deinit(m_object);
+        json_deinit(&m_object);
     }
 };
 
@@ -39,7 +39,7 @@ TEST_F(json_init_from_file_tests, positive_zero_end)
     ASSERT_NE(nullptr, m_fout);
     m_object = json_init_from_file(m_fin);
     ASSERT_NE(nullptr, m_object);
-    ASSERT_NE(-1, json_fprint(m_object, 0, m_fout));
+    ASSERT_NE(-1, json_fprint(&m_object, 0, m_fout));
     fflush(m_fout);
     EXPECT_STREQ(JSON_POSITIVE_STRING, m_out);
 }
@@ -52,7 +52,7 @@ TEST_F(json_init_from_file_tests, positive_eof_end)
     ASSERT_NE(nullptr, m_fout);
     m_object = json_init_from_file(m_fin);
     ASSERT_NE(nullptr, m_object);
-    ASSERT_NE(-1, json_fprint(m_object, 0, m_fout));
+    ASSERT_NE(-1, json_fprint(&m_object, 0, m_fout));
     fflush(m_fout);
     EXPECT_STREQ(JSON_POSITIVE_STRING, m_out);
 }

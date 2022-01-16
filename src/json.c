@@ -19,7 +19,7 @@ const char JSON_OBJECT[] = "object";
 typedef struct json_t json_t;
 
 typedef enum json_type_t {
-    JSON_TYPE_NULL = 0,
+    JSON_TYPE_NULL,
     JSON_TYPE_FALSE,
     JSON_TYPE_TRUE,
     JSON_TYPE_NUMBER,
@@ -54,44 +54,34 @@ typedef struct json_arr_t {
 } json_arr_t;
 
 typedef struct json_t {
-    union {
-        unsigned* refcnt;
-        json_str_t* str;
-        json_arr_t* arr;
-    };
     json_type_t type : bit_requared(JSON_TYPE_SIZE);
     unsigned have_root : 1;
+    union {
+        struct {
+            unsigned refcnt;
+            char str[];
+        } str;
+        struct {
+            unsigned size;
+            json_t* nodes[];
+        } arr;
+    };
 } json_t;
 
-json_t node_null = { { NULL }, JSON_TYPE_NULL, 0 };
-json_t node_true = { { NULL }, JSON_TYPE_TRUE, 0 };
-json_t node_false = { { NULL }, JSON_TYPE_FALSE, 0 };
+json_t node_null = { JSON_TYPE_NULL, 0, { { 0 } } };
+json_t node_true = { JSON_TYPE_TRUE, 0, { { 0 } } };
+json_t node_false = { JSON_TYPE_FALSE, 0, { { 0 } } };
 
 static unsigned json_refcnt(const json_t* self)
 {
-    if (self->refcnt == NULL) {
-        return 0;
-    }
     switch (self->type) {
-    case JSON_TYPE_ARRAY:
-    case JSON_TYPE_OBJECT:
-        return self->arr->refcnt;
+    case JSON_TYPE_NUMBER:
+    case JSON_TYPE_STRING:
+        return self->str.refcnt;
     default:
         break;
     }
     return 0;
-}
-
-static void json_set_root(json_t* self, unsigned value)
-{
-    switch (self->type) {
-    case JSON_TYPE_NULL:
-    case JSON_TYPE_TRUE:
-    case JSON_TYPE_FALSE:
-        return;
-    default:
-        self->have_root = value ? 1 : 0;
-    }
 }
 
 #define INSERT_PARAM_BEFORE(format, param, format2, ...) format format2, param __VA_OPT__(, ) __VA_ARGS__
@@ -111,54 +101,44 @@ static void json_set_root(json_t* self, unsigned value)
     CHECK_FUNC(call, "%s(%i)", strerror(errno), errno); \
 })
 
-#define CALLOC(elemments, size) ({             \
-    CHECK_FUNC_ERRNO(calloc(elemments, size)); \
+#define CALLOC(elemments, size) ({                         \
+    void* new = CHECK_FUNC_ERRNO(calloc(elemments, size)); \
+    log_debug_msg("calloc:%p", new);                       \
+    new;                                                   \
 })
 
-#define STRDUP(str) ({             \
-    CHECK_FUNC_ERRNO(strdup(str)); \
+#define REALLOC(source, new_size) ({                         \
+    void* old = source;                                      \
+    void* new = CHECK_FUNC_ERRNO(realloc(source, new_size)); \
+    log_debug_msg("realloc:%p->%p", old, new);               \
+    new;                                                     \
+})
+#define CHECK_NULL(value, ...) ({             \
+    if (value == NULL) {                      \
+        log_error_msg(#value " is NULL");     \
+        return __VA_OPT__(__VA_ARGS__;) NULL; \
+    }                                         \
 })
 
-#define REALLOC(source, new_size) ({             \
-    CHECK_FUNC_ERRNO(realloc(source, new_size)); \
+#define FREE(value) ({               \
+    log_debug_msg("free:%p", value); \
+    free(value);                     \
+    (value) = NULL;                  \
 })
 
-#define FREE(ptr) ({ \
-    free(ptr);       \
-    ptr = NULL;      \
+#define CLEANUP(cleaner) __attribute__((cleanup(cleaner)))
+#define UNCLEANUP(ptr) ({        \
+    typeof(ptr) tmp_##ptr = ptr; \
+    ptr = NULL;                  \
+    tmp_##ptr;                   \
 })
 
-#define CHECK(rule) ({                    \
-    if (!(rule)) {                        \
-        log_error_msg(#rule " is false"); \
-        return NULL;                      \
-    }                                     \
+#define CHECK_PPTR(pptr, ...) ({             \
+    CHECK_NULL(pptr, ##__VA_ARGS__);         \
+    typeof(*pptr) pptr##_value = *pptr;      \
+    CHECK_NULL(pptr##_value, ##__VA_ARGS__); \
+    pptr##_value;                            \
 })
-
-#define CHECK_NULL(value) ({              \
-    if (value == NULL) {                  \
-        log_error_msg(#value " is NULL"); \
-        return NULL;                      \
-    }                                     \
-})
-
-#define CLEANUP(cleaner) __attribute__((cleanup(cleaner##_cleanup)))
-#define UNCLEANUP(ptr) ({                  \
-    typeof(ptr) get_uncleanable_ptr = ptr; \
-    ptr = NULL;                            \
-    get_uncleanable_ptr;                   \
-})
-
-#define MAKE_CLEANUP_IMPL(cleaner, type) \
-    void cleaner##_cleanup(type* ptr)    \
-    {                                    \
-        if (*ptr == NULL) {              \
-            return;                      \
-        }                                \
-        cleaner(*ptr);                   \
-    }
-
-static MAKE_CLEANUP_IMPL(json_deinit, json_t*);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// INPUT
@@ -179,7 +159,7 @@ static const char* symbol_str(char c)
 }
 
 typedef struct reader_t {
-    char (*getc)(void*);
+    json_getc_t getc;
     void* data;
     char current;
     struct {
@@ -275,10 +255,10 @@ static char json_get_c_str(const char** str)
 /// GRAPH
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define JSON_FORMAT(node) #node ":%p{%s:%u}{%u}{%zu}", node, type2str(node->type), node->have_root, json_refcnt(node), json_size(node)
+#define JSON_FORMAT(node) #node ":%p{%s}{root:%u}{%u}{size:%zu}", (node), type2str((node)->type), (node)->have_root, json_refcnt(node), json_size(&node)
+
 #define json_tmp_t json_t CLEANUP(json_deinit)
 
-void json_deinit(json_t* self);
 static json_t* json_init_from_value_internal(json_type_t type, const char* value_str);
 
 static const char* types_str[]
@@ -317,195 +297,100 @@ static const json_type_t* str2type(const char* type_str)
     return NULL;
 }
 
-void json_deinit(json_t* self)
+static void json_deinit_(json_t** self_ptr)
 {
     log_trace_func();
-    if (self == NULL) {
-        log_debug_msg("self is NULL");
-        return;
-    }
+    json_t* self = CHECK_PPTR(self_ptr, ;);
     log_debug_msg(JSON_FORMAT(self));
     switch (self->type) {
     case JSON_TYPE_NULL:
     case JSON_TYPE_FALSE:
     case JSON_TYPE_TRUE:
         log_debug_msg("base type %s: deinit not requared", type2str(self->type));
+        *self_ptr = NULL;
         return;
+    case JSON_TYPE_STRING:
+    case JSON_TYPE_NUMBER:
+        if (self->str.refcnt > 1) {
+            self->str.refcnt--;
+            log_debug_msg("refcnt: %zu", self->str.refcnt);
+            return;
+        }
+        break;
     default:
+        for (size_t id = 0; id < self->arr.size; id++) {
+            log_debug_msg("deinit: %p", self->arr.nodes[id]);
+            json_deinit_(&(self->arr.nodes[id]));
+        }
         break;
     }
-    if (self->have_root != 0) {
-        log_debug_msg("node is a part of another node. deinit not requared");
-        return;
-    } else if (self->refcnt == NULL) {
-        log_debug_msg("partially inialaysed. data deinit not requared");
-    } else {
-        *self->refcnt = *self->refcnt ? *self->refcnt - 1 : 0;
-        if (*self->refcnt) {
-            log_debug_msg("refcnt:%zu", *self->refcnt);
-
-        } else {
-            log_debug_msg("deinit:" JSON_FORMAT(self));
-            switch (self->type) {
-            case JSON_TYPE_STRING:
-            case JSON_TYPE_NUMBER:
-                if (self->str->data) {
-                    FREE(self->str->data);
-                } else {
-                    log_debug_msg("data not inialysed");
-                }
-                FREE(self->str);
-                break;
-            default:
-                if (self->arr->data) {
-                    for (size_t i = 0; i < self->arr->size; i++) {
-                        if (self->arr->data[i] == NULL) {
-                            log_debug_msg("elem %zu not inialysed");
-                            continue;
-                        }
-                        json_set_root(self->arr->data[i], 0);
-                        json_deinit(self->arr->data[i]);
-                    }
-                    FREE(self->arr->data);
-                } else {
-                    log_debug_msg("data not inialysed");
-                }
-                FREE(self->arr);
-                break;
-            }
-        }
-    }
     FREE(self);
+    *self_ptr = NULL;
 }
 
-json_t* json_copy(json_t* self)
+void json_deinit(json_t** self_ptr)
 {
     log_trace_func();
-    CHECK_NULL(self);
+    json_t* self = CHECK_PPTR(self_ptr, ;);
+    log_debug_msg(JSON_FORMAT(self));
+    if (self->have_root) {
+        log_debug_msg("node have root. Deinit not requared");
+        return;
+    }
+    json_deinit_(self_ptr);
+}
+
+json_t* json_copy(json_t** self_ptr)
+{
+    log_trace_func();
+    json_t* self = CHECK_PPTR(self_ptr);
     log_debug_msg(JSON_FORMAT(self));
     switch (self->type) {
     case JSON_TYPE_NULL:
     case JSON_TYPE_TRUE:
     case JSON_TYPE_FALSE:
-        return self;
+        return (json_t*)self;
+    case JSON_TYPE_STRING:
+    case JSON_TYPE_NUMBER:
+        ((json_t*)self)->str.refcnt++;
+        return (json_t*)self;
     default:
         break;
     }
-    json_t* new = CALLOC(1, sizeof(json_t));
-    new->type = self->type;
-    new->refcnt = self->refcnt;
-    *new->refcnt += 1;
-    return new;
-}
-
-static json_t* json_copy_array(json_t* self)
-{
-    log_trace_func();
-    json_tmp_t* new = CALLOC(1, sizeof(json_t));
-    new->type = self->type;
-    new->arr = CALLOC(1, sizeof(json_arr_t));
-    *new->refcnt = 1;
-    new->arr->data = CALLOC(self->arr->size, sizeof(typeof(self->arr->data[0])));
-    new->arr->size = self->arr->size;
-    log_debug_msg(JSON_FORMAT(new));
-    for (size_t id = 0; id < self->arr->size; id++) {
-        new->arr->data[id] = CHECK_FUNC_ERRNO(json_copy(self->arr->data[id]));
-        json_set_root(new->arr->data[id], 1);
-        log_debug_msg("set:id:%zu", id);
-        log_debug_msg(JSON_FORMAT(new->arr->data[id]));
+    json_tmp_t* new = CALLOC(1, self->arr.size * sizeof(typeof(self->arr.nodes[0])) + sizeof(json_t));
+    *new = *self;
+    for (size_t i = 0; i < self->arr.size; i++) {
+        new->arr.nodes[i] = CHECK_FUNC(json_copy(&self->arr.nodes[i]));
+        new->arr.nodes[i]->have_root = 1;
     }
+    log_debug_msg(JSON_FORMAT(new));
     return UNCLEANUP(new);
 }
 
-static json_t* json_cow_array(json_t* self)
+static void json_set_f(json_t** self_ptr, json_t** elem_ptr, size_t id)
 {
     log_trace_func();
-    log_debug_msg(JSON_FORMAT(self));
-    if (*self->refcnt == 1) {
-        log_debug_msg("return same");
-        return self;
-    }
-    log_debug_msg("make copy");
-    json_tmp_t* tmp = CHECK_FUNC(json_copy_array(self));
-    json_arr_t* self_arr = self->arr;
-    self->arr = tmp->arr;
-    tmp->arr = self_arr;
-    return self;
-}
-
-static void json_set_force(json_t* self, json_t* elem, size_t id)
-{
-    log_trace_func();
+    json_t* self = *self_ptr;
+    json_t* elem = *elem_ptr;
     log_debug_msg(JSON_FORMAT(self));
     log_debug_msg(JSON_FORMAT(elem));
     log_debug_msg("id:%zu", id);
-    json_t* old = self->arr->data[id];
-    self->arr->data[id] = elem;
-    json_set_root(self->arr->data[id], 1);
-    json_set_root(old, 0);
-    json_deinit(old);
+    json_t* old = self->arr.nodes[id];
+    self->arr.nodes[id] = elem;
+    self->arr.nodes[id]->have_root = 1;
+    json_deinit_(&old);
 }
 
-static json_t* json_elem_detect_cyrcular_ref(const json_t* self, json_t* elem)
+const char* json_get_type(json_t** self_ptr)
 {
-    log_trace_func();
-    log_debug_msg(JSON_FORMAT(self));
-    log_debug_msg(JSON_FORMAT(elem));
-    switch (elem->type) {
-    case JSON_TYPE_ARRAY:
-    case JSON_TYPE_OBJECT: {
-        if (elem->refcnt == self->refcnt) {
-            log_debug_msg("circular ref found");
-            json_t* new_elem = CHECK_FUNC(json_copy_array(elem));
-            log_debug_msg("return " JSON_FORMAT(new_elem));
-            return new_elem;
-        }
-        json_tmp_t* new_elem = NULL;
-        for (size_t id = 0; id < elem->arr->size; id++) {
-            json_tmp_t* new_elem_node = json_elem_detect_cyrcular_ref(self, elem->arr->data[id]);
-            if (elem->arr->data[id] != new_elem_node) {
-                log_debug_msg("circular ref handling");
-                if (new_elem == NULL) {
-                    log_debug_msg("create copy of elem");
-                    new_elem = CHECK_FUNC(json_copy_array(elem));
-                    log_debug_msg(JSON_FORMAT(new_elem));
-                }
-                json_set_force(new_elem, new_elem_node, id);
-            }
-            UNCLEANUP(new_elem_node);
-        }
-        if (new_elem) {
-            log_debug_msg("return " JSON_FORMAT(new_elem));
-            return UNCLEANUP(new_elem);
-        }
-        break;
-    }
-    default:
-        break;
-    }
-    log_debug_msg("return same " JSON_FORMAT(elem));
-    return elem;
-}
-
-static json_t* json_elem_copy(const json_t* self, json_t* elem)
-{
-    log_trace_func();
-    json_tmp_t* new_elem = CHECK_FUNC(json_elem_detect_cyrcular_ref(self, elem));
-    return new_elem == elem ? CHECK_FUNC(json_copy(UNCLEANUP(new_elem))) : UNCLEANUP(new_elem);
-}
-
-const char* json_get_type(json_t* self)
-{
-    log_trace_func();
-    CHECK_NULL(self);
-    log_debug_msg(JSON_FORMAT(self));
+    json_t* self = CHECK_PPTR(self_ptr);
     return type2str(self->type);
 }
 
-const char* json_get_str(json_t* self)
+const char* json_get_str(json_t** self_ptr)
 {
     log_trace_func();
-    CHECK_NULL(self);
+    json_t* self = CHECK_PPTR(self_ptr);
     log_debug_msg(JSON_FORMAT(self));
     switch (self->type) {
     case JSON_TYPE_NULL:
@@ -514,37 +399,41 @@ const char* json_get_str(json_t* self)
         return type2str(self->type);
     case JSON_TYPE_NUMBER:
     case JSON_TYPE_STRING:
-        return self->str->data;
+        return self->str.str;
     default:
         log_error_msg("not supported for %s type", type2str(self->type));
         return NULL;
     }
 }
 
-size_t json_size(const json_t* self)
+size_t json_size(json_t** self_ptr)
 {
-    if (self == NULL) {
-        log_error_msg("self is NULL");
-        return 0;
-    }
-    if (self->refcnt == NULL) {
-        return 0;
-    }
+    json_t* self = CHECK_PPTR(self_ptr, 0);
     switch (self->type) {
     case JSON_TYPE_ARRAY:
-        return self->arr->size;
+        return self->arr.size;
     case JSON_TYPE_OBJECT:
-        return self->arr->size / 2;
+        return self->arr.size / 2;
     default:
         break;
     }
     return 0;
 }
 
-json_t* json_get_by_id(json_t* self, size_t id)
+static json_t** json_get_by_id_(json_t* self, size_t id)
+{
+    if (id < self->arr.size) {
+        log_debug_msg("return " JSON_FORMAT(self->arr.nodes[id]));
+        return &(self->arr.nodes[id]);
+    }
+    log_error_msg("index %zu out of range %zu", id, self->arr.size / (self->type == JSON_TYPE_OBJECT ? 2 : 1));
+    return NULL;
+}
+
+json_t** json_get_by_id(json_t** self_ptr, size_t id)
 {
     log_trace_func();
-    CHECK_NULL(self);
+    json_t* self = CHECK_PPTR(self_ptr);
     log_debug_msg(JSON_FORMAT(self));
     log_debug_msg("id:%zu", id);
     switch (self->type) {
@@ -557,48 +446,37 @@ json_t* json_get_by_id(json_t* self, size_t id)
         log_error_msg("not supported for %s type", type2str(self->type));
         return NULL;
     }
-    if (id < self->arr->size) {
-        log_debug_msg(JSON_FORMAT(self->arr->data[id]));
-        return self->arr->data[id];
-    }
-    log_error_msg("index %zu out of range %zu", id, self->arr->size / (self->type == JSON_TYPE_OBJECT ? 2 : 1));
-    return NULL;
+    return CHECK_FUNC(json_get_by_id_(self, id));
 }
 
-const char* json_key(const json_t* self, size_t id)
+const char* json_key(json_t** self_ptr, size_t id)
 {
     log_trace_func();
-    CHECK_NULL(self);
+    json_t* self = CHECK_PPTR(self_ptr);
     log_debug_msg(JSON_FORMAT(self));
     log_debug_msg("id:%zu", id);
     switch (self->type) {
     case JSON_TYPE_OBJECT:
         id = id * 2;
-        if (id < self->arr->size) {
-            return self->arr->data[id]->str->data;
-        }
-        log_error_msg("index %zu out of range %zu", id / 2, self->arr->size / 2);
-        return NULL;
+        return (*CHECK_FUNC(json_get_by_id_(self, id)))->str.str;
     default:
         log_error_msg("not supported for %s type", type2str(self->type));
         return NULL;
     }
-    log_error_msg("index %zu out of range %zu", id, self->arr->size / 2);
-    return NULL;
 }
 
-json_t* json_get_by_key(json_t* self, const char* key)
+json_t** json_get_by_key(json_t** self_ptr, const char* key)
 {
     log_trace_func();
-    CHECK_NULL(self);
+    json_t* self = CHECK_PPTR(self_ptr);
     CHECK_NULL(key);
     log_debug_msg(JSON_FORMAT(self));
     log_debug_msg("key:%s", key);
     switch (self->type) {
     case JSON_TYPE_OBJECT:
-        for (size_t i = 0; i < self->arr->size; i += 2) {
-            if (strcmp(key, self->arr->data[i]->str->data) == 0) {
-                return self->arr->data[i + 1];
+        for (size_t i = 0; i < self->arr.size; i += 2) {
+            if (strcmp(key, self->arr.nodes[i]->str.str) == 0) {
+                return &(self->arr.nodes[i + 1]);
             }
         }
         log_error_msg("key '%s' not fround", key);
@@ -609,44 +487,90 @@ json_t* json_get_by_key(json_t* self, const char* key)
     }
 }
 
-static json_t* json_set_by_id_internal(json_t* self, json_t* elem, size_t id)
+static json_t** json_check_circular_ref(json_t** self_ptr, json_t** elem_ptr)
 {
     log_trace_func();
+    json_t* self = *self_ptr;
+    json_t* elem = *elem_ptr;
+    log_debug_msg(JSON_FORMAT(self));
+    log_debug_msg(JSON_FORMAT(elem));
+    switch (elem->type) {
+    case JSON_TYPE_ARRAY:
+    case JSON_TYPE_OBJECT: {
+        if (elem == self) {
+            log_debug_msg("circular ref found!");
+            return NULL;
+        }
+        for (size_t id = 0; id < elem->arr.size; id++) {
+            CHECK_FUNC(json_check_circular_ref(self_ptr, &(elem->arr.nodes[id])));
+        }
+        break;
+    }
+    default:
+        break;
+    }
+    return elem_ptr;
+}
+static json_t* json_elem_copy(json_t** self_ptr, json_t** elem_ptr, int check_circular)
+{
+    log_trace_func();
+    json_t* self = *self_ptr;
+    json_t* elem = *elem_ptr;
+    log_debug_msg(JSON_FORMAT(self));
+    log_debug_msg(JSON_FORMAT(elem));
+    log_debug_msg("check_circular:%s", check_circular ? JSON_TRUE : JSON_FALSE);
+    log_debug_msg("have_root:%s", self->have_root ? JSON_TRUE : JSON_FALSE);
+    if (elem->have_root) {
+        *elem_ptr = CHECK_FUNC(json_copy(elem_ptr));
+    } else if (check_circular && json_check_circular_ref(self_ptr, elem_ptr) == NULL) {
+        return CHECK_FUNC(json_copy(elem_ptr));
+    }
+    return *elem_ptr;
+}
+
+static json_t** json_set_by_id_(json_t** self_ptr, json_t** elem_ptr, size_t id, int check_circular)
+{
+    log_trace_func();
+    json_t* self = *self_ptr;
+    json_t* elem = *elem_ptr;
     log_debug_msg(JSON_FORMAT(self));
     log_debug_msg(JSON_FORMAT(elem));
     log_debug_msg("id:%zu", id);
-    CHECK_FUNC(json_cow_array(self));
-    json_tmp_t* new_elem = CHECK_FUNC(json_elem_copy(self, elem));
-    log_debug_msg(JSON_FORMAT(self));
-    log_debug_msg(JSON_FORMAT(new_elem));
-    if (id == self->arr->size) {
-        log_debug_msg("increase array size");
-        self->arr->data = REALLOC(self->arr->data, (self->arr->size + 1) * sizeof(typeof(self->arr->data[0])));
-        self->arr->data[self->arr->size++] = &node_null;
+    json_t* new_elem = CHECK_FUNC(json_elem_copy(self_ptr, elem_ptr, check_circular));
+    elem = *elem_ptr;
+    log_debug_msg(JSON_FORMAT(elem));
+    if (id == self->arr.size) {
+        log_debug_msg("increase array size to %zu", self->arr.size + 1);
+        self = REALLOC(self, (self->arr.size + 1) * sizeof(typeof(self->arr.nodes[0])) + sizeof(json_t));
+        self->arr.nodes[self->arr.size++] = &node_null;
+        *self_ptr = self;
     }
-    json_set_force(self, UNCLEANUP(new_elem), id);
-    return self;
+    json_set_f(self_ptr, &new_elem, id);
+    elem = *elem_ptr;
+    log_debug_msg(JSON_FORMAT(self));
+    log_debug_msg(JSON_FORMAT(elem));
+    return self_ptr;
 }
 
-json_t* json_set_by_id(json_t* self, json_t* elem, size_t id)
+json_t** json_set_by_id(json_t** self_ptr, json_t** elem_ptr, size_t id)
 {
     log_trace_func();
-    CHECK_NULL(self);
-    CHECK_NULL(elem);
+    json_t* self = CHECK_PPTR(self_ptr);
+    json_t* elem = CHECK_PPTR(elem_ptr);
     log_debug_msg(JSON_FORMAT(self));
     log_debug_msg(JSON_FORMAT(elem));
     log_debug_msg("id:%zu", id);
     switch (self->type) {
     case JSON_TYPE_OBJECT:
         id = id * 2 + 1;
-        if (id >= self->arr->size) {
-            log_error_msg("id %zu out of range %zu", id / 2, self->arr->size / 2);
+        if (id >= self->arr.size) {
+            log_error_msg("id %zu out of range %zu", id / 2, self->arr.size / 2);
             return NULL;
         }
         break;
     case JSON_TYPE_ARRAY:
-        if (id > self->arr->size) {
-            log_error_msg("id %zu out of range %zu", id, self->arr->size);
+        if (id > self->arr.size) {
+            log_error_msg("id %zu out of range %zu", id, self->arr.size);
             return NULL;
         }
         break;
@@ -654,17 +578,24 @@ json_t* json_set_by_id(json_t* self, json_t* elem, size_t id)
         log_error_msg("not supported for %s type", type2str(self->type));
         return NULL;
     }
-    log_debug_msg("real id:%zu", id);
-    self = CHECK_FUNC(json_set_by_id_internal(self, elem, id));
-    return self;
+
+    self_ptr = CHECK_FUNC(json_set_by_id_(self_ptr, elem_ptr, id, 1));
+    return self_ptr;
 }
 
-json_t* json_set_by_key(json_t* self, json_t* elem, const char* key)
+static void json_remove_last(json_t* self)
+{
+    log_debug_msg(JSON_FORMAT(self));
+    json_deinit(&(self->arr.nodes[self->arr.size - 1]));
+    self->arr.size--;
+}
+
+json_t** json_set_by_key(json_t** self_ptr, json_t** elem_ptr, const char* key)
 {
     log_trace_func();
-    CHECK_NULL(self);
-    CHECK_NULL(elem);
     CHECK_NULL(key);
+    json_t* self = CHECK_PPTR(self_ptr);
+    json_t* elem = CHECK_PPTR(elem_ptr);
     log_debug_msg(JSON_FORMAT(self));
     log_debug_msg(JSON_FORMAT(elem));
     log_debug_msg("key:%s", key);
@@ -676,24 +607,32 @@ json_t* json_set_by_key(json_t* self, json_t* elem, const char* key)
         log_error_msg("not supported for %s type", type2str(self->type));
         return NULL;
     }
-    for (size_t id = 0; id < self->arr->size; id += 2) {
-        if (strcmp(key, self->arr->data[id]->str->data) == 0) {
-            return CHECK_FUNC(json_set_by_id(self, elem, id / 2));
+    for (size_t id = 0; id < self->arr.size; id += 2) {
+        if (strcmp(key, self->arr.nodes[id]->str.str) == 0) {
+            return CHECK_FUNC(json_set_by_id(self_ptr, elem_ptr, id / 2));
         }
     }
-    self = CHECK_FUNC(json_cow_array(self));
-    json_tmp_t* key_obj = CHECK_FUNC(json_init_from_value_internal(JSON_TYPE_STRING, key));
-    json_tmp_t* new_elem = CHECK_FUNC(json_elem_copy(self, elem));
-    self->arr->data = REALLOC(self->arr->data, (self->arr->size + 1) * 2 * sizeof(typeof(self->arr->data[0])));
-    json_set_root(key_obj, 1);
-    json_set_root(new_elem, 1);
-    log_debug_msg(JSON_FORMAT(key_obj));
-    log_debug_msg(JSON_FORMAT(new_elem));
-    self->arr->data[self->arr->size] = UNCLEANUP(key_obj);
-    self->arr->data[self->arr->size + 1] = UNCLEANUP(new_elem);
-    self->arr->size += 2;
-    log_debug_msg("%p:%p", key_obj, new_elem);
-    return self;
+    json_tmp_t* new_key = CHECK_FUNC(json_init_from_value_internal(JSON_TYPE_STRING, key));
+    CHECK_FUNC(json_set_by_id_(&self, &new_key, self->arr.size, 1));
+    if (json_set_by_id_(&self, &elem, self->arr.size, 1) == NULL) {
+        log_error_msg("Can't set new key");
+        json_remove_last(self);
+        return NULL;
+    }
+    *self_ptr = self;
+    return self_ptr;
+}
+
+json_t** json_set(json_t** self_ptr, json_t** elem_ptr)
+{
+    log_trace_func();
+    json_t* self = CHECK_PPTR(self_ptr);
+    CHECK_PPTR(elem_ptr);
+    unsigned have_root = self->have_root;
+    *self_ptr = CHECK_FUNC(json_elem_copy(self_ptr, elem_ptr, 1));
+    json_deinit_(&self);
+    (*self_ptr)->have_root = have_root ? 1 : 0;
+    return self_ptr;
 }
 
 static json_t* json_init_from_value_internal(json_type_t type, const char* value_str)
@@ -708,21 +647,18 @@ static json_t* json_init_from_value_internal(json_type_t type, const char* value
         return (json_t*)&node_false;
     case JSON_TYPE_TRUE:
         return (json_t*)&node_true;
+    case JSON_TYPE_NUMBER:
+    case JSON_TYPE_STRING:
+        self = CALLOC(1, sizeof(json_str_t) + strlen(value_str) + 1);
+        self->type = type;
+        strcpy(self->str.str, value_str);
+        self->str.refcnt = 1;
+        break;
     default:
         self = CALLOC(1, sizeof(json_t));
         self->type = type;
         break;
     }
-    switch (type) {
-    case JSON_TYPE_NUMBER:
-    case JSON_TYPE_STRING:
-        self->str = CALLOC(1, sizeof(json_str_t));
-        self->str->data = STRDUP(value_str);
-        break;
-    default:
-        self->arr = CALLOC(1, sizeof(json_arr_t));
-    }
-    *self->refcnt = 1;
     return UNCLEANUP(self);
 }
 
@@ -733,10 +669,13 @@ static const char* check_number(const char* str)
     log_trace_func();
     log_debug_msg("check:'%s'", str);
     const char* iterator = str;
-    reader_t CLEANUP(reader) reader = reader_init((json_getc_t)json_get_c_str, &iterator);
+    reader_t CLEANUP(reader_cleanup) reader = reader_init((json_getc_t)json_get_c_str, &iterator);
     CHECK_FUNC(parse_number(&reader));
     iterator--;
-    CHECK(iterator[0] == 0);
+    if (iterator[0] != 0) {
+        log_debug_msg("expta symbols('%s') in number string:'%s'", &iterator[0], str);
+        return NULL;
+    }
     return str;
 }
 
@@ -808,12 +747,6 @@ static int json_chex2num(char c)
     return json_cdec2num(c);
 }
 
-static json_t* json_push(json_t* self, json_t* value)
-{
-    log_trace_func();
-    return CHECK_FUNC(json_set_by_id(self, value, json_size(self)));
-}
-
 static void skipspaces(reader_t* reader)
 {
     log_trace_func();
@@ -858,6 +791,7 @@ static int expect_token(reader_t* reader, char c)
 
 static json_t* json_parse_string(reader_t* reader)
 {
+    log_trace_func();
     log_debug_msg("parse %s", JSON_STRING);
     if (expect_token(reader, '"') == 0) {
         UNEXPECTED_SYMBOL(reader);
@@ -993,10 +927,10 @@ static json_t* json_parse(reader_t* reader)
         }
         do {
             json_tmp_t* elem = CHECK_FUNC(json_parse(reader));
-            if (json_get_type(elem) != JSON_NUMBER) {
+            if (elem->type != JSON_TYPE_NUMBER) {
                 get_c(reader);
             }
-            value = CHECK_FUNC(json_push(value, elem));
+            CHECK_FUNC(json_set_by_id_(&value, &elem, value->arr.size, 0));
         } while (expect_token(reader, COMMA) && (get_c(reader) || 1));
         if (expect_token(reader, ARRAY_END) == 0) {
             UNEXPECTED_SYMBOL(reader);
@@ -1007,12 +941,14 @@ static json_t* json_parse(reader_t* reader)
     case OBJECT_BEGIN: {
         log_debug_msg("parse %s", JSON_OBJECT);
         get_c(reader);
-        value = CHECK_FUNC(json_init_from_value(JSON_OBJECT, NULL));
+        value = CHECK_FUNC(json_init_from_value_internal(JSON_TYPE_OBJECT, NULL));
+        log_debug_msg(JSON_FORMAT(value));
         if (expect_token(reader, OBJECT_END)) {
             break;
         }
         do {
             json_tmp_t* key = CHECK_FUNC(json_parse_string(reader));
+            CHECK_FUNC(json_set_by_id_(&value, &key, value->arr.size, 0));
             get_c(reader);
             if (expect_token(reader, OBJECT_DIV) == 0) {
                 UNEXPECTED_SYMBOL(reader);
@@ -1020,11 +956,10 @@ static json_t* json_parse(reader_t* reader)
             }
             get_c(reader);
             json_tmp_t* elem = CHECK_FUNC(json_parse(reader));
-            if (json_get_type(elem) != JSON_NUMBER) {
+            if (elem->type != JSON_TYPE_NUMBER) {
                 get_c(reader);
             }
-            value = CHECK_FUNC(json_set_by_key(value, elem, json_get_str(key)));
-
+            CHECK_FUNC(json_set_by_id_(&value, &elem, value->arr.size, 0));
         } while (expect_token(reader, COMMA) && (get_c(reader) || 1));
 
         if (expect_token(reader, OBJECT_END) == 0) {
@@ -1063,7 +998,7 @@ static json_t* json_parse(reader_t* reader)
         break;
     }
     }
-    log_debug_msg("parsing success");
+    log_debug_msg("parsing success:" JSON_FORMAT(value));
     return UNCLEANUP(value);
 }
 
@@ -1071,7 +1006,7 @@ json_t* json_init_from(json_getc_t getc, void* data)
 {
     log_trace_func();
     CHECK_NULL(getc);
-    reader_t reader CLEANUP(reader) = reader_init(getc, data);
+    reader_t reader CLEANUP(reader_cleanup) = reader_init(getc, data);
     json_t* self = CHECK_FUNC(json_parse(&reader));
     return self;
 }
@@ -1095,7 +1030,7 @@ json_t* json_init_from_str(const char* str, const char** endptr)
     log_debug_msg("parse:\n%s", str);
     json_t* self = json_init_from((json_getc_t)json_get_c_str, &str);
     if (endptr != NULL) {
-        if (self == NULL || json_get_type(self) == JSON_NUMBER) {
+        if (self == NULL || json_get_type(&self) == JSON_NUMBER) {
             str--;
         }
         log_debug_msg("%p", str);
