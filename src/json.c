@@ -490,6 +490,7 @@ static json_t** json_check_circular_ref(json_t** self_ptr, json_t** elem_ptr)
     case JSON_TYPE_ARRAY:
     case JSON_TYPE_OBJECT: {
         if (elem == self) {
+            log_debug_msg("circular ref found!");
             return NULL;
         }
         for (size_t id = 0; id < elem->arr.size; id++) {
@@ -502,7 +503,7 @@ static json_t** json_check_circular_ref(json_t** self_ptr, json_t** elem_ptr)
     }
     return elem_ptr;
 }
-static json_t** json_elem_copy(json_t** self_ptr, json_t** elem_ptr, int check_circular)
+static json_t* json_elem_copy(json_t** self_ptr, json_t** elem_ptr, int check_circular)
 {
     log_trace_func();
     json_t* self = *self_ptr;
@@ -511,9 +512,9 @@ static json_t** json_elem_copy(json_t** self_ptr, json_t** elem_ptr, int check_c
     log_debug_msg(JSON_FORMAT(elem));
     log_debug_msg("check_circular:%s", check_circular ? JSON_TRUE : JSON_FALSE);
     if (self->have_root || (check_circular && json_check_circular_ref(self_ptr, elem_ptr) == NULL)) {
-        *elem_ptr = json_copy(elem_ptr);
+        return json_copy(elem_ptr);
     }
-    return elem_ptr;
+    return elem;
 }
 
 static json_t** json_set_by_id_(json_t** self_ptr, json_t** elem_ptr, size_t id, int check_circular)
@@ -524,8 +525,7 @@ static json_t** json_set_by_id_(json_t** self_ptr, json_t** elem_ptr, size_t id,
     log_debug_msg(JSON_FORMAT(self));
     log_debug_msg(JSON_FORMAT(elem));
     log_debug_msg("id:%zu", id);
-    elem_ptr = json_elem_copy(self_ptr, elem_ptr, check_circular);
-    elem = *elem_ptr;
+    json_t* new_elem = CHECK_FUNC(json_elem_copy(self_ptr, elem_ptr, check_circular));
     log_debug_msg(JSON_FORMAT(elem));
     if (id == self->arr.size) {
         log_debug_msg("increase array size to %zu", self->arr.size + 1);
@@ -533,7 +533,7 @@ static json_t** json_set_by_id_(json_t** self_ptr, json_t** elem_ptr, size_t id,
         self->arr.nodes[self->arr.size++] = &node_null;
         *self_ptr = self;
     }
-    json_set_f(self_ptr, elem_ptr, id);
+    json_set_f(self_ptr, &new_elem, id);
     return self_ptr;
 }
 
@@ -598,12 +598,13 @@ json_t** json_set_by_key(json_t** self_ptr, json_t** elem_ptr, const char* key)
         }
     }
     json_tmp_t* new_key = CHECK_FUNC(json_init_from_value_internal(JSON_TYPE_STRING, key));
-    CHECK_FUNC(json_set_by_id_(self_ptr, &new_key, self->arr.size, 0));
-    if (json_set_by_id_(self_ptr, elem_ptr, self->arr.size, 1)) {
+    CHECK_FUNC(json_set_by_id_(&self, &new_key, self->arr.size, 1));
+    if (json_set_by_id_(&self, &elem, self->arr.size, 1) == NULL) {
         log_error_msg("Can't set new key");
-        json_remove_last(*self_ptr);
+        json_remove_last(self);
         return NULL;
     }
+    *self_ptr = self;
     return self_ptr;
 }
 
@@ -613,7 +614,7 @@ json_t** json_set(json_t** self_ptr, json_t** elem_ptr)
     json_t* self = CHECK_PPTR(self_ptr);
     CHECK_PPTR(elem_ptr);
     unsigned have_root = self->have_root;
-    *self_ptr = *json_elem_copy(self_ptr, elem_ptr, 1);
+    *self_ptr = json_elem_copy(self_ptr, elem_ptr, 1);
     json_deinit_(&self);
     (*self_ptr)->have_root = have_root ? 1 : 0;
     return self_ptr;

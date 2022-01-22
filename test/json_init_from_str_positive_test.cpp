@@ -263,8 +263,8 @@ json_init_from_str_positive_tests_impl_1(JSONS_OBJECT_WITH_OBJECTS);
 static const char JSONS_OBJECT_NON_REPEATED_KEYS[] = R"JSON({"key1":{"123":123},"key2":"key2","key3":123,"key4":[]})JSON";
 json_init_from_str_positive_tests_impl_1(JSONS_OBJECT_NON_REPEATED_KEYS);
 static const char JSONS_OBJECT_REPEATED_KEYS[] = R"JSON({"key1":{"123":123},"key2":"key2","key1":123,"key2":[]})JSON";
-static const char JSONS_OBJECT_REPEATED_KEYS_EXPECTED[] = R"JSON({"key1":123,"key2":[]})JSON";
-json_init_from_str_positive_tests_impl_1_expected(JSONS_OBJECT_REPEATED_KEYS);
+// static const char JSONS_OBJECT_REPEATED_KEYS_EXPECTED[] = R"JSON({"key1":123,"key2":[]})JSON";
+json_init_from_str_positive_tests_impl_1(JSONS_OBJECT_REPEATED_KEYS);
 
 static const char JSONS_SPACE_NULL[] = R"JSON(    null)JSON";
 static const char JSONS_SPACE_NULL_EXPECTED[] = R"JSON(null)JSON";
