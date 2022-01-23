@@ -30,7 +30,7 @@ protected:
     }
 };
 const char UNEXSISTED[] = "unexisted_key";
-const char NEW_KEY[] = "new_key";
+#define NEW_KEY "new_key"
 #define SOME_NUMBER "12345"
 #define SOME_STRING "some string"
 
@@ -89,7 +89,7 @@ NODE_FIXTURE(not_empty_object, "{" JSON_STR(KEY1) ":" SOME_NUMBER "," JSON_STR(K
         EXPECT_STREQ(expected, method(&m_object, key));          \
     }
 
-#define test_node_set(node_type, type, method, key, expected)        \
+#define test_node_set(node_type, type, method, key, expected, ...)   \
     TEST_F(json_##node_type##_node, method##_key_##key##_##type)     \
     {                                                                \
         if (expected) {                                              \
@@ -218,4 +218,6 @@ test_node_set_and_check_result(empty_object, json_set_by_key, KEY2, ANY_DATA, "{
 test_node_set_and_check_result(not_empty_array, json_set_by_id, 0, NULL_STR, "[" NULL_STR "," JSON_STR(SOME_STRING) "]");
 test_node_set_and_check_result(not_empty_array, json_set_by_id, 1, NULL_STR, "[" SOME_NUMBER "," NULL_STR "]");
 test_node_set_and_check_result(not_empty_array, json_set_by_id, 2, NULL_STR, "[" SOME_NUMBER "," JSON_STR(SOME_STRING) "," NULL_STR "]");
+test_node_set_and_check_result(not_empty_object, json_set_by_key, KEY2, ANY_DATA, "{" JSON_STR(KEY1) ":" SOME_NUMBER "," JSON_STR(KEY2) ":" ANY_DATA "}");
+test_node_set_and_check_result(not_empty_object, json_set_by_key, NEW_KEY, ANY_DATA, "{" JSON_STR(KEY1) ":" SOME_NUMBER "," JSON_STR(KEY2) ":" JSON_STR(SOME_STRING) "," JSON_STR(NEW_KEY) ":" ANY_DATA "}");
 }

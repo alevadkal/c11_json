@@ -10,6 +10,7 @@
 #include "json_printer.h"
 #include "log.h"
 #include "system_mock.hpp"
+#include <functional>
 
 namespace json_test {
 
@@ -28,60 +29,104 @@ protected:
 
 #define JSON_STREQ(object, str) ({            \
     auto actual_str = json_sprint(object, 0); \
-    EXPECT_STREQ(actual_str, str);            \
+    ASSERT_STREQ(actual_str, str);            \
     free(actual_str);                         \
 })
 
-#define system_test_base(function, system_func_name, system_func_params, string, ...) \
-    TEST_F(json_system_test, function##_##system_func_name##_##string##_negative)     \
-    {                                                                                 \
-        log_trace_func();                                                             \
-        {                                                                             \
-            auto check = function(string, ##__VA_ARGS__);                             \
-            ASSERT_NE(check, nullptr);                                                \
-            json_deinit(&check);                                                      \
-        }                                                                             \
-        for (int i = 0; true; i++) {                                                  \
-            NiceMock<system_mock> m_mock;                                             \
-            InSequence s;                                                             \
-            log_debug_msg("Check for %i succesfull calloc calls", i);                 \
-            if (i) {                                                                  \
-                EXPECT_CALL(m_mock, system_func_name system_func_params)              \
-                    .Times(i)                                                         \
-                    .WillRepeatedly(DoDefault());                                     \
-            }                                                                         \
-            EXPECT_CALL(m_mock, system_func_name system_func_params)                  \
-                .Times(AtMost(1))                                                     \
-                .WillRepeatedly(ReturnNull());                                        \
-            m_object = function(string, ##__VA_ARGS__);                               \
-            if (m_object) {                                                           \
-                log_debug_msg("Checking done");                                       \
-                break;                                                                \
-            }                                                                         \
-        }                                                                             \
-        JSON_STREQ(&m_object, string);                                                \
+#define EXPECT_SET(iterations, function, params)                       \
+    log_debug_msg("Check for %i successful calloc calls", iterations); \
+    NiceMock<system_mock> mock;                                        \
+    InSequence s;                                                      \
+    if (iterations) {                                                  \
+        EXPECT_CALL(mock, function params)                             \
+            .Times(iterations)                                         \
+            .WillRepeatedly(DoDefault());                              \
+    }                                                                  \
+    EXPECT_CALL(mock, function params)                                 \
+        .Times(AtMost(1))                                              \
+        .WillRepeatedly(ReturnNull());
+
+#define system_test_base(function, params, test_name, setup, test, ...) \
+    TEST_F(json_system_test, test_name##_##function##_negative)         \
+    {                                                                   \
+        int ok = 0;                                                     \
+        log_trace_func();                                               \
+        {                                                               \
+            setup(ok, ##__VA_ARGS__);                                   \
+            test(ok, ##__VA_ARGS__);                                    \
+        }                                                               \
+        ASSERT_NE(0, ok);                                               \
+        ok = 0;                                                         \
+        for (int iteration = 0; ok != 0; iteration++) {                 \
+            setup(ok, ##__VA_ARGS__);                                   \
+            EXPECT_SET(iteration, function, params);                    \
+            test(ok, ##__VA_ARGS__);                                    \
+        }                                                               \
     }
 
-#define system_test(function, string, ...)                              \
-    system_test_base(function, malloc, (_), string, ##__VA_ARGS__);     \
-    system_test_base(function, calloc, (_, _), string, ##__VA_ARGS__);  \
-    system_test_base(function, realloc, (_, _), string, ##__VA_ARGS__); \
-    system_test_base(function, strdup, (_), string, ##__VA_ARGS__);
+#define NOTHING_FUNC(...)
 
-#define system_test_init_from_str(string) system_test(json_init_from_str, string, nullptr)
+#define system_test(test, ...)            \
+    test(malloc, (_), ##__VA_ARGS__);     \
+    test(calloc, (_, _), ##__VA_ARGS__);  \
+    test(realloc, (_, _), ##__VA_ARGS__); \
+    test(strdup, (_), ##__VA_ARGS__);
 
-const char JSON_NULL[] = "null";
-system_test_init_from_str(JSON_NULL);
-const char JSON_TRUE[] = "true";
-system_test_init_from_str(JSON_TRUE);
-const char JSON_FALSE[] = "false";
-system_test_init_from_str(JSON_FALSE);
+#define json_init_from_str_test(ok, string) ({      \
+    m_object = json_init_from_str(string, nullptr); \
+    if (m_object) {                                 \
+        JSON_STREQ(&m_object, string);              \
+        json_deinit(&m_object);                     \
+        ok = 1;                                     \
+    }                                               \
+})
+
+#define system_test_json_init_from_str(function, params, string) \
+    system_test_base(function, params, json_init_from_str##_##string, NOTHING_FUNC, json_init_from_str_test, string);
+
+static const char JSON_NULL[] = "null";
+system_test(system_test_json_init_from_str, JSON_NULL);
+static const char JSON_TRUE[] = "true";
+system_test(system_test_json_init_from_str, JSON_TRUE);
+static const char JSON_FALSE[] = "false";
+system_test(system_test_json_init_from_str, JSON_FALSE);
 const char JSON_123[] = "123";
-system_test_init_from_str(JSON_123);
+system_test(system_test_json_init_from_str, JSON_123);
 const char JSON_STR_QWERTY[] = "\"QWERTY\"";
-system_test_init_from_str(JSON_STR_QWERTY);
+system_test(system_test_json_init_from_str, JSON_STR_QWERTY);
 const char JSON_ARRAY[] = "[[null],{\"false\":false},\"QWERTY\",12345,false,true,null]";
-system_test_init_from_str(JSON_ARRAY);
+system_test(system_test_json_init_from_str, JSON_ARRAY);
 const char JSON_OBJECT[] = "{\"1\":[null],\"2\":{\"false\":false},\"3\":\"QWERTY\",\"4\":12345,\"5\":false,\"6\":true,\"7\":null}";
-system_test_init_from_str(JSON_OBJECT);
+system_test(system_test_json_init_from_str, JSON_OBJECT);
+/*
+#define init_object_setup(ok, init_string, ...)          \
+    m_object = json_init_from_str(init_string, nullptr); \
+    ASSERT_NE(nullptr, m_object);
+
+#define set_by_key_test(ok, unused1, key, expected)           \
+    auto result = json_set_by_key(&m_object, &m_object, key); \
+    if (result) {                                             \
+        JSON_STREQ(&m_object, expected);                      \
+        json_deinit(&m_object);                               \
+        ok = 1;                                               \
+    }
+
+#define system_test_function_for_someting(sys_function, sys_params, init_string, key) \
+    system_test_base(sys_function, sys_params, json_set_by_key_##key, init_object_setup, set_by_key_test, init_string, key, EXPECTED_FOR_##key);
+
+#define JSON_STRING(str) "\"" str "\""
+#define JSON_OBJECT(str) "{" str "}"
+#define OBJECT_PAIR(key, str) \
+    JSON_STRING(key)          \
+    ":" str
+
+#define EXIST_KEY "exist_key"
+#define NOT_EXIST_KEY "not_exist_key"
+#define SOME_HEAVY_OBJECT JSON_OBJECT(OBJECT_PAIR(EXIST_KEY, "[null]"))
+#define EXPECTED_FOR_EXIST_KEY JSON_OBJECT(OBJECT_PAIR(EXIST_KEY, SOME_HEAVY_OBJECT))
+#define EXPECTED_FOR_NOT_EXIST_KEY JSON_OBJECT(OBJECT_PAIR(EXIST_KEY, "[null]") "," OBJECT_PAIR(NOT_EXIST_KEY, SOME_HEAVY_OBJECT))
+
+system_test(system_test_function_for_someting, SOME_HEAVY_OBJECT, EXIST_KEY);
+system_test(system_test_function_for_someting, SOME_HEAVY_OBJECT, NOT_EXIST_KEY);
+*/
 }

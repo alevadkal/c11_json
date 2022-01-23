@@ -60,6 +60,8 @@ target_link_libraries(json_test PUBLIC
     gtest_main
     system_mock
 )
+gtest_discover_tests(json_test)
+
 target_include_directories(json_test PUBLIC src include test)
 add_test(
     NAME json_test_valgrind
@@ -75,4 +77,3 @@ add_test(
          $<TARGET_FILE:json_test>
 )
 
-gtest_discover_tests(json_test)

@@ -82,7 +82,24 @@ TEST_F(json_graph_ref_test, deep_ref)
     ASSERT_JSONSTREQ(&root, "[[[[null]]]]");
     json_deinit(&root);
 }
-
+TEST_F(json_graph_ref_test, add_object_self_to_self_exist_key_self_positive)
+{
+    log_trace_func();
+    json_t* root = json_init_from_str("{\"key\":[null]}", nullptr);
+    ASSERT_NE(nullptr, json_set_by_key(&root, &root, "key"));
+    ASSERT_JSONSTREQ(&root, "{\"key\":{\"key\":[null]}}");
+    json_deinit(&root);
+}
+/*
+TEST_F(json_graph_ref_test, add_object_self_to_self_not_exist_key_self_positive)
+{
+    log_trace_func();
+    json_t* root = json_init_from_str("{\"key\":[null]}", nullptr);
+    ASSERT_NE(nullptr, json_set_by_key(&root, &root, "not_exist"));
+    ASSERT_JSONSTREQ(&root, "{\"key\":[null],\"not_exist\":{\"key\":[null]}}");
+    json_deinit(&root);
+}
+*/
 class json_graph_mega_ref_test : public Test {
 
 private:
