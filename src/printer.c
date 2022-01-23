@@ -16,6 +16,8 @@ typedef struct writer_t {
     void* data;
 } writer_t;
 
+#define JSON_FORMAT(node) #node ":%p{%s}{size:%zu}", *(node), json_get_type(node), json_size(node)
+
 static int put_c(writer_t* self, char c)
 {
     self->print_cnt++;
@@ -115,8 +117,8 @@ static int put_indent(writer_t* writer, int change)
 static int json_print_internal(json_t** self, writer_t* writer)
 {
     log_trace_func();
+    log_debug_msg(JSON_FORMAT(self));
     const char* type = json_get_type(self);
-    log_debug_msg("Value type is '%s'", type);
     if (type != JSON_OBJECT && type != JSON_ARRAY) {
         log_debug_msg("Object not container. Get only value");
         const char* value = JSON_GET_STR(self);

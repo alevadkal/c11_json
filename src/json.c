@@ -249,7 +249,7 @@ static char json_get_c_str(const char** str)
 /// GRAPH
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define JSON_FORMAT(node) #node ":%p{%s}{root:%u}{size:%zu}", (node), type2str((node)->type), json_refcnt(node), json_size(&node)
+#define JSON_FORMAT(node) #node ":%p{%s}{root:%u}{%u}{size:%zu}", (node), type2str((node)->type), (node)->have_root, json_refcnt(node), json_size(&node)
 
 #define json_tmp_t json_t CLEANUP(json_deinit)
 
@@ -313,6 +313,7 @@ static void json_deinit_(json_t** self_ptr)
         break;
     default:
         for (size_t id = 0; id < self->arr.size; id++) {
+            log_debug_msg("deinit: %p", self->arr.nodes[id]);
             json_deinit_(&(self->arr.nodes[id]));
         }
         break;
@@ -356,6 +357,7 @@ json_t* json_copy(json_t** self_ptr)
         new->arr.nodes[i] = CHECK_FUNC(json_copy(&self->arr.nodes[i]));
         new->arr.nodes[i]->have_root = 1;
     }
+    log_debug_msg(JSON_FORMAT(new));
     return UNCLEANUP(new);
 }
 
@@ -511,10 +513,13 @@ static json_t* json_elem_copy(json_t** self_ptr, json_t** elem_ptr, int check_ci
     log_debug_msg(JSON_FORMAT(self));
     log_debug_msg(JSON_FORMAT(elem));
     log_debug_msg("check_circular:%s", check_circular ? JSON_TRUE : JSON_FALSE);
-    if (self->have_root || (check_circular && json_check_circular_ref(self_ptr, elem_ptr) == NULL)) {
-        return json_copy(elem_ptr);
+    log_debug_msg("have_root:%s", self->have_root ? JSON_TRUE : JSON_FALSE);
+    if (elem->have_root) {
+        *elem_ptr = CHECK_FUNC(json_copy(elem_ptr));
+    } else if (check_circular && json_check_circular_ref(self_ptr, elem_ptr) == NULL) {
+        return CHECK_FUNC(json_copy(elem_ptr));
     }
-    return elem;
+    return *elem_ptr;
 }
 
 static json_t** json_set_by_id_(json_t** self_ptr, json_t** elem_ptr, size_t id, int check_circular)
@@ -526,6 +531,7 @@ static json_t** json_set_by_id_(json_t** self_ptr, json_t** elem_ptr, size_t id,
     log_debug_msg(JSON_FORMAT(elem));
     log_debug_msg("id:%zu", id);
     json_t* new_elem = CHECK_FUNC(json_elem_copy(self_ptr, elem_ptr, check_circular));
+    elem = *elem_ptr;
     log_debug_msg(JSON_FORMAT(elem));
     if (id == self->arr.size) {
         log_debug_msg("increase array size to %zu", self->arr.size + 1);
@@ -534,6 +540,10 @@ static json_t** json_set_by_id_(json_t** self_ptr, json_t** elem_ptr, size_t id,
         *self_ptr = self;
     }
     json_set_f(self_ptr, &new_elem, id);
+    self = *self_ptr;
+    elem = *elem_ptr;
+    log_debug_msg(JSON_FORMAT(self));
+    log_debug_msg(JSON_FORMAT(elem));
     return self_ptr;
 }
 
@@ -614,7 +624,7 @@ json_t** json_set(json_t** self_ptr, json_t** elem_ptr)
     json_t* self = CHECK_PPTR(self_ptr);
     CHECK_PPTR(elem_ptr);
     unsigned have_root = self->have_root;
-    *self_ptr = json_elem_copy(self_ptr, elem_ptr, 1);
+    *self_ptr = CHECK_FUNC(json_elem_copy(self_ptr, elem_ptr, 1));
     json_deinit_(&self);
     (*self_ptr)->have_root = have_root ? 1 : 0;
     return self_ptr;
