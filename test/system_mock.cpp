@@ -51,6 +51,16 @@ system_mock::~system_mock()
     thiz = nullptr;
 }
 
+bool system_mock::VerifyAndClearExpectations()
+{
+    return ::testing::Mock::VerifyAndClearExpectations(this);
+}
+
+bool system_mock::VerifyAndClear()
+{
+    return ::testing::Mock::VerifyAndClear(this);
+}
+
 #define mock_call(call) (system_mock::instance() ? ({log_trace_func();system_mock::instance()->call; }) : __real_##call)
 
 void* wrap(malloc)(size_t size)

@@ -18,6 +18,8 @@ public:
     system_mock();
     static system_mock* instance();
     ~system_mock();
+    bool VerifyAndClearExpectations();
+    bool VerifyAndClear();
 };
 
 extern "C" {

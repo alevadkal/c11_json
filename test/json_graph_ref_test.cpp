@@ -90,7 +90,7 @@ TEST_F(json_graph_ref_test, add_object_self_to_self_exist_key_self_positive)
     ASSERT_JSONSTREQ(&root, "{\"key\":{\"key\":[null]}}");
     json_deinit(&root);
 }
-/*
+
 TEST_F(json_graph_ref_test, add_object_self_to_self_not_exist_key_self_positive)
 {
     log_trace_func();
@@ -99,7 +99,7 @@ TEST_F(json_graph_ref_test, add_object_self_to_self_not_exist_key_self_positive)
     ASSERT_JSONSTREQ(&root, "{\"key\":[null],\"not_exist\":{\"key\":[null]}}");
     json_deinit(&root);
 }
-*/
+
 class json_graph_mega_ref_test : public Test {
 
 private:

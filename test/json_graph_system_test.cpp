@@ -35,8 +35,6 @@ protected:
 
 #define EXPECT_SET(iterations, function, params)                       \
     log_debug_msg("Check for %i successful calloc calls", iterations); \
-    NiceMock<system_mock> mock;                                        \
-    InSequence s;                                                      \
     if (iterations) {                                                  \
         EXPECT_CALL(mock, function params)                             \
             .Times(iterations)                                         \
@@ -52,12 +50,16 @@ protected:
         int ok = 0;                                                     \
         log_trace_func();                                               \
         {                                                               \
+            NiceMock<system_mock> mock;                                 \
+            InSequence s;                                               \
             setup(ok, ##__VA_ARGS__);                                   \
             test(ok, ##__VA_ARGS__);                                    \
         }                                                               \
         ASSERT_NE(0, ok);                                               \
         ok = 0;                                                         \
-        for (int iteration = 0; ok != 0; iteration++) {                 \
+        for (int iteration = 0; ok == 0; iteration++) {                 \
+            NiceMock<system_mock> mock;                                 \
+            InSequence s;                                               \
             setup(ok, ##__VA_ARGS__);                                   \
             EXPECT_SET(iteration, function, params);                    \
             test(ok, ##__VA_ARGS__);                                    \
@@ -66,39 +68,40 @@ protected:
 
 #define NOTHING_FUNC(...)
 
-#define system_test(test, ...)            \
-    test(malloc, (_), ##__VA_ARGS__);     \
-    test(calloc, (_, _), ##__VA_ARGS__);  \
-    test(realloc, (_, _), ##__VA_ARGS__); \
-    test(strdup, (_), ##__VA_ARGS__);
+#define system_test(test, ...) \
+    test(calloc, (_, _), ##__VA_ARGS__);
+// test(strdup, (_), ##__VA_ARGS__);
+//    test(realloc, (_, _), ##__VA_ARGS__);
+// test(malloc, (_), ##__VA_ARGS__);
 
-#define json_init_from_str_test(ok, string) ({      \
-    m_object = json_init_from_str(string, nullptr); \
-    if (m_object) {                                 \
-        JSON_STREQ(&m_object, string);              \
-        json_deinit(&m_object);                     \
-        ok = 1;                                     \
-    }                                               \
+#define json_init_from_str_test(ok, string) ({          \
+    m_object = json_init_from_str(string, nullptr);     \
+    if (m_object) {                                     \
+        EXPECT_TRUE(mock.VerifyAndClearExpectations()); \
+        JSON_STREQ(&m_object, string);                  \
+        json_deinit(&m_object);                         \
+        ok = 1;                                         \
+    }                                                   \
 })
 
 #define system_test_json_init_from_str(function, params, string) \
     system_test_base(function, params, json_init_from_str##_##string, NOTHING_FUNC, json_init_from_str_test, string);
 
-static const char JSON_NULL[] = "null";
-system_test(system_test_json_init_from_str, JSON_NULL);
-static const char JSON_TRUE[] = "true";
-system_test(system_test_json_init_from_str, JSON_TRUE);
-static const char JSON_FALSE[] = "false";
-system_test(system_test_json_init_from_str, JSON_FALSE);
-const char JSON_123[] = "123";
-system_test(system_test_json_init_from_str, JSON_123);
+static const char JSON_NULL_VALUE[] = "null";
+system_test(system_test_json_init_from_str, JSON_NULL_VALUE);
+static const char JSON_TRUE_VALUE[] = "true";
+system_test(system_test_json_init_from_str, JSON_TRUE_VALUE);
+static const char JSON_FALSE_VALUE[] = "false";
+system_test(system_test_json_init_from_str, JSON_FALSE_VALUE);
+const char JSON_NUMBER_VALUE[] = "-123.123E+123";
+system_test(system_test_json_init_from_str, JSON_NUMBER_VALUE);
 const char JSON_STR_QWERTY[] = "\"QWERTY\"";
 system_test(system_test_json_init_from_str, JSON_STR_QWERTY);
 const char JSON_ARRAY[] = "[[null],{\"false\":false},\"QWERTY\",12345,false,true,null]";
 system_test(system_test_json_init_from_str, JSON_ARRAY);
 const char JSON_OBJECT[] = "{\"1\":[null],\"2\":{\"false\":false},\"3\":\"QWERTY\",\"4\":12345,\"5\":false,\"6\":true,\"7\":null}";
 system_test(system_test_json_init_from_str, JSON_OBJECT);
-/*
+
 #define init_object_setup(ok, init_string, ...)          \
     m_object = json_init_from_str(init_string, nullptr); \
     ASSERT_NE(nullptr, m_object);
@@ -106,6 +109,7 @@ system_test(system_test_json_init_from_str, JSON_OBJECT);
 #define set_by_key_test(ok, unused1, key, expected)           \
     auto result = json_set_by_key(&m_object, &m_object, key); \
     if (result) {                                             \
+        EXPECT_TRUE(mock.VerifyAndClearExpectations());       \
         JSON_STREQ(&m_object, expected);                      \
         json_deinit(&m_object);                               \
         ok = 1;                                               \
@@ -128,5 +132,5 @@ system_test(system_test_json_init_from_str, JSON_OBJECT);
 
 system_test(system_test_function_for_someting, SOME_HEAVY_OBJECT, EXIST_KEY);
 system_test(system_test_function_for_someting, SOME_HEAVY_OBJECT, NOT_EXIST_KEY);
-*/
+
 }
