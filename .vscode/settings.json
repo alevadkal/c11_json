@@ -29,5 +29,10 @@
     "editor.formatOnSave": true,
     "cmake.parallelJobs": 2,
     "cmake.ctest.parallelJobs": 2,
-    "C_Cpp.formatting": "clangFormat"
+    "C_Cpp.formatting": "clangFormat",
+    "cSpell.words": [
+        "STREQ",
+        "thiz",
+        "UNCLEANUP"
+    ]
 }

@@ -54,6 +54,7 @@ protected:
             InSequence s;                                               \
             setup(ok, ##__VA_ARGS__);                                   \
             test(ok, ##__VA_ARGS__);                                    \
+            json_deinit(&m_object);                                     \
         }                                                               \
         ASSERT_NE(0, ok);                                               \
         ok = 0;                                                         \
@@ -63,16 +64,17 @@ protected:
             setup(ok, ##__VA_ARGS__);                                   \
             EXPECT_SET(iteration, function, params);                    \
             test(ok, ##__VA_ARGS__);                                    \
+            json_deinit(&m_object);                                     \
         }                                                               \
     }
 
 #define NOTHING_FUNC(...)
 
-#define system_test(test, ...) \
-    test(calloc, (_, _), ##__VA_ARGS__);
-// test(strdup, (_), ##__VA_ARGS__);
-//    test(realloc, (_, _), ##__VA_ARGS__);
-// test(malloc, (_), ##__VA_ARGS__);
+#define system_test(test, ...)            \
+    test(calloc, (_, _), ##__VA_ARGS__);  \
+    test(strdup, (_), ##__VA_ARGS__);     \
+    test(realloc, (_, _), ##__VA_ARGS__); \
+    test(malloc, (_), ##__VA_ARGS__);
 
 #define json_init_from_str_test(ok, string) ({          \
     m_object = json_init_from_str(string, nullptr);     \
