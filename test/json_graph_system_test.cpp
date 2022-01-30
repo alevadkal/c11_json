@@ -76,18 +76,20 @@ protected:
     test(realloc, (_, _), ##__VA_ARGS__); \
     test(malloc, (_), ##__VA_ARGS__);
 
-#define json_init_from_str_test(ok, string) ({          \
+#define json_init_from_str_test(ok, string, ...) ({     \
     m_object = json_init_from_str(string, nullptr);     \
     if (m_object) {                                     \
         EXPECT_TRUE(mock.VerifyAndClearExpectations()); \
-        JSON_STREQ(&m_object, string);                  \
+        const char* expected = string;                  \
+        __VA_OPT__(expected = __VA_ARGS__;)             \
+        JSON_STREQ(&m_object, expected);                \
         json_deinit(&m_object);                         \
         ok = 1;                                         \
     }                                                   \
 })
 
-#define system_test_json_init_from_str(function, params, string) \
-    system_test_base(function, params, json_init_from_str##_##string, NOTHING_FUNC, json_init_from_str_test, string);
+#define system_test_json_init_from_str(function, params, string, ...) \
+    system_test_base(function, params, json_init_from_str##_##string, NOTHING_FUNC, json_init_from_str_test, string, ##__VA_ARGS__);
 
 static const char JSON_NULL_VALUE[] = "null";
 system_test(system_test_json_init_from_str, JSON_NULL_VALUE);
@@ -97,8 +99,21 @@ static const char JSON_FALSE_VALUE[] = "false";
 system_test(system_test_json_init_from_str, JSON_FALSE_VALUE);
 const char JSON_NUMBER_VALUE[] = "-123.123E+123";
 system_test(system_test_json_init_from_str, JSON_NUMBER_VALUE);
+
+const char JSON_NUMBER_MINUS_ZERO[] = "-0";
+system_test(system_test_json_init_from_str, JSON_NUMBER_MINUS_ZERO);
+
 const char JSON_STR_QWERTY[] = "\"QWERTY\"";
 system_test(system_test_json_init_from_str, JSON_STR_QWERTY);
+
+static const char JSONS_STRING_U_3_BYTE_CHAR[] = R"JSON(" \u262D ")JSON";
+static const char JSONS_STRING_U_3_BYTE_CHAR_EXPECTED[] = R"JSON(" ☭ ")JSON";
+system_test(system_test_json_init_from_str, JSONS_STRING_U_3_BYTE_CHAR, JSONS_STRING_U_3_BYTE_CHAR_EXPECTED);
+
+static const char JSONS_STRING_U_2_BYTE_CHAR[] = R"JSON(" \u0398 ")JSON";
+static const char JSONS_STRING_U_2_BYTE_CHAR_EXPECTED[] = R"JSON(" Θ ")JSON";
+system_test(system_test_json_init_from_str, JSONS_STRING_U_2_BYTE_CHAR, JSONS_STRING_U_2_BYTE_CHAR_EXPECTED);
+
 const char JSON_ARRAY[] = "[[null],{\"false\":false},\"QWERTY\",12345,false,true,null]";
 system_test(system_test_json_init_from_str, JSON_ARRAY);
 const char JSON_OBJECT[] = "{\"1\":[null],\"2\":{\"false\":false},\"3\":\"QWERTY\",\"4\":12345,\"5\":false,\"6\":true,\"7\":null}";

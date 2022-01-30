@@ -113,7 +113,7 @@ static unsigned json_refcnt(const json_t* self)
     log_debug_msg("realloc:%p->%p", old, new);               \
     new;                                                     \
 })
-#define CHECK_NULL(value, ...) ({              \
+#define ASSERT_NULL(value, ...) ({             \
     if (value == NULL) {                       \
         log_error_msg(#value " is NULL");      \
         return __VA_ARGS__ __VA_OPT__(;) NULL; \
@@ -131,11 +131,11 @@ static unsigned json_refcnt(const json_t* self)
     ptr = NULL;          \
 })
 
-#define CHECK_PPTR(pptr, ...) ({             \
-    CHECK_NULL(pptr, ##__VA_ARGS__);         \
-    typeof(*pptr) pptr##_value = *pptr;      \
-    CHECK_NULL(pptr##_value, ##__VA_ARGS__); \
-    pptr##_value;                            \
+#define ASSERT_PPTR(pptr, ...) ({             \
+    ASSERT_NULL(pptr, ##__VA_ARGS__);         \
+    typeof(*pptr) pptr##_value = *pptr;       \
+    ASSERT_NULL(pptr##_value, ##__VA_ARGS__); \
+    pptr##_value;                             \
 })
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -302,7 +302,7 @@ static const json_type_t* str2type(const char* type_str)
 static void json_deinit_(json_t** self)
 {
     log_trace_func();
-    CHECK_PPTR(self, ;);
+    ASSERT_PPTR(self, ;);
     log_debug_msg(JSON_FORMAT(self));
     switch ((*self)->type) {
     case JSON_TYPE_NULL:
@@ -332,7 +332,7 @@ static void json_deinit_(json_t** self)
 void json_deinit(json_t** self)
 {
     log_trace_func();
-    CHECK_PPTR(self, ;);
+    ASSERT_PPTR(self, ;);
     log_debug_msg(JSON_FORMAT(self));
     if ((*self)->have_root) {
         log_debug_msg("node have root. Deinit not required");
@@ -346,7 +346,7 @@ json_t* json_copy(json_t** self)
 {
     log_trace_func();
     json_t* new = NULL;
-    CHECK_PPTR(self);
+    ASSERT_PPTR(self);
     log_debug_msg(JSON_FORMAT(self));
     switch ((*self)->type) {
     case JSON_TYPE_NULL:
@@ -389,7 +389,7 @@ static void json_set_f(json_t** self, json_t** elem, size_t id)
 
 const char* json_get_type(json_t** self)
 {
-    CHECK_PPTR(self);
+    ASSERT_PPTR(self);
     return type2str((*self)->type);
     return NULL;
 }
@@ -397,7 +397,7 @@ const char* json_get_type(json_t** self)
 const char* json_get_str(json_t** self)
 {
     log_trace_func();
-    CHECK_PPTR(self);
+    ASSERT_PPTR(self);
     log_debug_msg(JSON_FORMAT(self));
     switch ((*self)->type) {
     case JSON_TYPE_NULL:
@@ -416,7 +416,7 @@ const char* json_get_str(json_t** self)
 
 size_t json_size(json_t** self)
 {
-    CHECK_PPTR(self, 0);
+    ASSERT_PPTR(self, 0);
     switch ((*self)->type) {
     case JSON_TYPE_ARRAY:
         return (*self)->arr.size;
@@ -441,7 +441,7 @@ static json_t** json_get_by_id_(json_t** self, size_t id)
 json_t** json_get_by_id(json_t** self, size_t id)
 {
     log_trace_func();
-    CHECK_PPTR(self);
+    ASSERT_PPTR(self);
     log_debug_msg(JSON_FORMAT(self));
     log_debug_msg("id:%zu", id);
     switch ((*self)->type) {
@@ -462,7 +462,7 @@ error:
 const char* json_key(json_t** self, size_t id)
 {
     log_trace_func();
-    CHECK_PPTR(self);
+    ASSERT_PPTR(self);
     log_debug_msg(JSON_FORMAT(self));
     log_debug_msg("id:%zu", id);
     switch ((*self)->type) {
@@ -480,8 +480,8 @@ error:
 json_t** json_get_by_key(json_t** self, const char* key)
 {
     log_trace_func();
-    CHECK_PPTR(self);
-    CHECK_NULL(key);
+    ASSERT_PPTR(self);
+    ASSERT_NULL(key);
     log_debug_msg(JSON_FORMAT(self));
     log_debug_msg("key:%s", key);
     switch ((*self)->type) {
@@ -571,8 +571,8 @@ error:
 json_t** json_set_by_id(json_t** self, json_t** elem, size_t id)
 {
     log_trace_func();
-    CHECK_PPTR(self);
-    CHECK_PPTR(elem);
+    ASSERT_PPTR(self);
+    ASSERT_PPTR(elem);
     log_debug_msg(JSON_FORMAT(self));
     log_debug_msg(JSON_FORMAT(elem));
     log_debug_msg("id:%zu", id);
@@ -606,9 +606,9 @@ error:
 json_t** json_set_by_key(json_t** self, json_t** elem, const char* key)
 {
     log_trace_func();
-    CHECK_NULL(key);
-    CHECK_PPTR(self);
-    CHECK_PPTR(elem);
+    ASSERT_NULL(key);
+    ASSERT_PPTR(self);
+    ASSERT_PPTR(elem);
     json_t* new_key = NULL;
     json_t* new_elem = NULL;
     log_debug_msg(JSON_FORMAT(self));
@@ -645,16 +645,17 @@ error:
     return NULL;
 }
 
-json_t** json_set(json_t** self_ptr, json_t** elem_ptr)
+json_t** json_set(json_t** self, json_t** elem)
 {
     log_trace_func();
-    json_t* self = CHECK_PPTR(self_ptr);
-    CHECK_PPTR(elem_ptr);
-    unsigned have_root = self->have_root;
-    *self_ptr = CHECK_FUNC(json_elem_copy(self_ptr, elem_ptr, 1));
-    json_deinit_(&self);
-    (*self_ptr)->have_root = have_root ? 1 : 0;
-    return self_ptr;
+    ASSERT_PPTR(self);
+    ASSERT_PPTR(elem);
+    unsigned have_root = (*self)->have_root;
+    json_t* old = *self;
+    *self = CHECK_FUNC(json_elem_copy(self, elem, 1));
+    json_deinit_(&old);
+    (*self)->have_root = have_root ? 1 : 0;
+    return self;
 error:
     return NULL;
 }
@@ -712,7 +713,7 @@ error:
 json_t* json_init_from_value(const char* type_str, const char* value_str)
 {
     log_trace_func();
-    CHECK_NULL(type_str);
+    ASSERT_NULL(type_str);
     log_debug_msg("type_str:'%s'", type_str);
     const json_type_t* type = CHECK_FUNC(str2type(type_str));
     switch (*type) {
@@ -1048,7 +1049,7 @@ error:
 json_t* json_init_from(json_getc_t getc, void* data)
 {
     log_trace_func();
-    CHECK_NULL(getc);
+    ASSERT_NULL(getc);
     json_t* self = NULL;
     reader_t reader = reader_init(getc, data);
     self = CHECK_FUNC(json_parse(&reader));
@@ -1060,7 +1061,7 @@ error:
 json_t* json_init_from_file(FILE* file)
 {
     log_trace_func();
-    CHECK_NULL(file);
+    ASSERT_NULL(file);
     return CHECK_FUNC(json_init_from((json_getc_t)json_get_c_file, file));
 error:
     return NULL;
@@ -1074,7 +1075,7 @@ json_t* json_init_from_str(const char* str, const char** endptr)
     } else {
         log_debug_msg("endptr is NULL");
     }
-    CHECK_NULL(str);
+    ASSERT_NULL(str);
     log_debug_msg("parse:\n%s", str);
     json_t* self = json_init_from((json_getc_t)json_get_c_str, &str);
     if (endptr != NULL) {
