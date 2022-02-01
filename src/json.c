@@ -186,13 +186,11 @@ error:
 })
 static const char* reader_reset_s(reader_t* reader)
 {
-    if (reader->tmp.size) {
-        reader->tmp.data[0] = 0;
-        reader->tmp.stored = 0;
-    } else {
-        READER_PUT2S(reader, 0);
-        return reader_reset_s(reader);
+    if (reader->tmp.size == 0 && reader->tmp.data == NULL) {
+        reader->tmp.data = CALLOC(1, sizeof(char));
     }
+    reader->tmp.data[0] = 0;
+    reader->tmp.stored = 0;
     return reader->tmp.data;
 error:
     return NULL;
@@ -1028,7 +1026,7 @@ static json_t* json_parse(reader_t* reader)
                 return NULL;
             }
         }
-        value = CHECK_FUNC(json_init_from_value(type, NULL));
+        value = json_init_from_value(type, NULL);
         break;
     }
     default: {

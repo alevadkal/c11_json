@@ -26,7 +26,6 @@ json_t* json_init_from(json_getc_t getc, void* data);
 json_t* json_init_from_file(FILE* file);
 json_t* json_init_from_str(const char* value, const char** endptr);
 json_t* json_copy(json_t** self);
-json_t** json_set(json_t** dst, json_t** src);
 void json_deinit(json_t** self);
 
 const char* json_get_type(json_t** self);
@@ -69,6 +68,8 @@ json_t** json_get_by_key(json_t** self, const char* key);
 /// \n available for JSON_OBJECT. Cause error for another types
 ///
 json_t** json_set_by_key(json_t** self_ptr, json_t** value, const char* key);
+
+json_t** json_set(json_t** dst, json_t** src); // not tested
 
 #ifdef __cplusplus
 }
