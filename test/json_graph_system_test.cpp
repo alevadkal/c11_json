@@ -132,7 +132,7 @@ system_test(system_test_json_init_from_str, JSON_OBJECT);
         ok = 1;                                               \
     }
 
-#define system_test_function_for_someting(sys_function, sys_params, init_string, key) \
+#define system_test_for_set_by_key(sys_function, sys_params, init_string, key) \
     system_test_base(sys_function, sys_params, json_set_by_key_##key, init_object_setup, set_by_key_test, init_string, key, EXPECTED_FOR_##key);
 
 #define JSON_STRING(str) "\"" str "\""
@@ -147,7 +147,23 @@ system_test(system_test_json_init_from_str, JSON_OBJECT);
 #define EXPECTED_FOR_EXIST_KEY JSON_OBJECT(OBJECT_PAIR(EXIST_KEY, SOME_HEAVY_OBJECT))
 #define EXPECTED_FOR_NOT_EXIST_KEY JSON_OBJECT(OBJECT_PAIR(EXIST_KEY, "[null]") "," OBJECT_PAIR(NOT_EXIST_KEY, SOME_HEAVY_OBJECT))
 
-system_test(system_test_function_for_someting, SOME_HEAVY_OBJECT, EXIST_KEY);
-system_test(system_test_function_for_someting, SOME_HEAVY_OBJECT, NOT_EXIST_KEY);
+system_test(system_test_for_set_by_key, SOME_HEAVY_OBJECT, EXIST_KEY);
+system_test(system_test_for_set_by_key, SOME_HEAVY_OBJECT, NOT_EXIST_KEY);
+
+#define set_by_id_test(ok, unused1, id, expected)           \
+    auto result = json_set_by_id(&m_object, &m_object, id); \
+    if (result) {                                           \
+        EXPECT_TRUE(mock.VerifyAndClearExpectations());     \
+        JSON_STREQ(&m_object, expected);                    \
+        json_deinit(&m_object);                             \
+        ok = 1;                                             \
+    }
+
+#define system_test_for_set_by_id(sys_function, sys_params, init_string, id) \
+    system_test_base(sys_function, sys_params, json_set_by_id_##id, init_object_setup, set_by_id_test, init_string, id, EXPECTED_FOR_##id);
+
+const char JSON_SUMPLE_ARRAY[] = "[[null],{}]";
+const char EXPECTED_FOR_2[] = "[[null],{},[[null],{}]]";
+system_test(system_test_for_set_by_id, JSON_SUMPLE_ARRAY, 2);
 
 }

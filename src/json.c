@@ -653,6 +653,7 @@ json_t** json_set(json_t** self, json_t** elem)
     *self = CHECK_FUNC(json_elem_copy(self, elem, 1));
     json_deinit_(&old);
     (*self)->have_root = have_root ? 1 : 0;
+
     return self;
 error:
     return NULL;

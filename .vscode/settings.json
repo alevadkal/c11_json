@@ -31,6 +31,8 @@
     "cmake.ctest.parallelJobs": 2,
     "C_Cpp.formatting": "clangFormat",
     "cSpell.words": [
+        "JSONSTREQ",
+        "MULTYDIGIT",
         "STREQ",
         "thiz",
         "UNCLEANUP"

@@ -9,14 +9,21 @@ namespace json_test {
 
 using namespace ::testing;
 
+#define JSON_STREQ(object, str) ({            \
+    auto actual_str = json_sprint(object, 0); \
+    ASSERT_STREQ(actual_str, str);            \
+    free(actual_str);                         \
+})
+
 class json_base : public Test {
 protected:
     json_t* m_object = nullptr;
     json_t* m_child = nullptr;
+    std::string m_child_str = "[{},[],\"\",123,false,true,null]";
     json_t** get_child()
     {
         if (m_child == nullptr) {
-            m_child = json_init_from_str("[{},[],\"\",123,false,true,null]", nullptr);
+            m_child = json_init_from_str(m_child_str.c_str(), nullptr);
             EXPECT_NE(nullptr, m_child);
         }
         return &m_child;
@@ -29,7 +36,7 @@ protected:
         json_deinit(&m_object);
     }
 };
-const char UNEXSISTED[] = "unexisted_key";
+const char UNEXCITED[] = "unexisted_key";
 #define NEW_KEY "new_key"
 #define SOME_NUMBER "12345"
 #define SOME_STRING "some string"
@@ -100,14 +107,14 @@ NODE_FIXTURE(not_empty_object, "{" JSON_STR(KEY1) ":" SOME_NUMBER "," JSON_STR(K
         }                                                            \
     }
 
-#define BASE_TESTS(type, type_str, expected_str)                         \
-    test_str(type, positive, json_get_type, type_str);                   \
-    test_str(type, positive, json_get_str, expected_str);                \
-    test_size(type, negative, json_size, 0);                             \
-    test_node_get(type, negative, json_get_by_id, 0, nullptr);           \
-    test_node_set(type, negative, json_set_by_id, 0, nullptr);           \
-    test_node_key(type, negative, json_key, 0, nullptr);                 \
-    test_node_get(type, negative, json_get_by_key, UNEXSISTED, nullptr); \
+#define BASE_TESTS(type, type_str, expected_str)                        \
+    test_str(type, positive, json_get_type, type_str);                  \
+    test_str(type, positive, json_get_str, expected_str);               \
+    test_size(type, negative, json_size, 0);                            \
+    test_node_get(type, negative, json_get_by_id, 0, nullptr);          \
+    test_node_set(type, negative, json_set_by_id, 0, nullptr);          \
+    test_node_key(type, negative, json_key, 0, nullptr);                \
+    test_node_get(type, negative, json_get_by_key, UNEXCITED, nullptr); \
     test_node_set(type, negative, json_set_by_key, NEW_KEY, nullptr);
 
 BASE_TESTS(null, JSON_NULL, JSON_NULL)
@@ -122,7 +129,7 @@ test_size(empty_array, positive, json_size, 0);
 test_node_get(empty_array, negative, json_get_by_id, 0, nullptr);
 test_node_set(empty_array, positive, json_set_by_id, 0, m_object);
 test_node_key(empty_array, negative, json_key, 0, nullptr);
-test_node_get(empty_array, negative, json_get_by_key, UNEXSISTED, nullptr);
+test_node_get(empty_array, negative, json_get_by_key, UNEXCITED, nullptr);
 test_node_set(empty_array, negative, json_set_by_key, NEW_KEY, nullptr);
 
 test_str(empty_object, positive, json_get_type, JSON_OBJECT);
@@ -131,7 +138,7 @@ test_size(empty_object, positive, json_size, 0);
 test_node_get(empty_object, negative, json_get_by_id, 0, nullptr);
 test_node_set(empty_object, negative, json_set_by_id, 0, nullptr);
 test_node_key(empty_object, negative, json_key, 0, nullptr);
-test_node_get(empty_object, negative, json_get_by_key, UNEXSISTED, nullptr);
+test_node_get(empty_object, negative, json_get_by_key, UNEXCITED, nullptr);
 test_node_set(empty_object, negative, json_set_by_key, NEW_KEY, m_object);
 
 test_str(not_empty_array, positive, json_get_type, JSON_ARRAY);
@@ -145,7 +152,7 @@ test_node_set(not_empty_array, positive, json_set_by_id, 1, m_object);
 test_node_set(not_empty_array, positive, json_set_by_id, 2, m_object);
 test_node_set(not_empty_array, negative, json_set_by_id, 3, nullptr);
 test_node_key(not_empty_array, negative, json_key, 0, nullptr);
-test_node_get(not_empty_array, negative, json_get_by_key, UNEXSISTED, nullptr);
+test_node_get(not_empty_array, negative, json_get_by_key, UNEXCITED, nullptr);
 test_node_set(not_empty_array, negative, json_set_by_key, NEW_KEY, nullptr);
 
 test_str(not_empty_object, positive, json_get_type, JSON_OBJECT);
@@ -162,7 +169,7 @@ test_node_key(not_empty_object, positive, json_key, 1, KEY2);
 test_node_key(not_empty_object, negative, json_key, 2, nullptr);
 test_node_get(not_empty_object, negative, json_get_by_key, KEY1, SOME_NUMBER);
 test_node_get(not_empty_object, negative, json_get_by_key, KEY2, SOME_STRING);
-test_node_get(not_empty_object, negative, json_get_by_key, UNEXSISTED, nullptr);
+test_node_get(not_empty_object, negative, json_get_by_key, UNEXCITED, nullptr);
 test_node_set(not_empty_object, negative, json_set_by_key, NEW_KEY, m_object);
 #define test_node_set_and_check_result(node_type, method, key, value, expected)                         \
     TEST_F(json_##node_type##_node, method##_key_##key##_elem_##value##_positive)                       \
@@ -211,7 +218,7 @@ test_node_set(not_empty_object, negative, json_set_by_key, NEW_KEY, m_object);
 
 #define NULL_STR "null"
 test_node_set_and_check_result(empty_array, json_set_by_id, 0, NULL_STR, "[" NULL_STR "]");
-#define ANY_DATA "{\"key\":[123,false,{},[]]}"
+#define ANY_DATA "{" JSON_STR("key") ":[123,false,{},[]]}"
 test_node_set_and_check_result(empty_array, json_set_by_id, 0, ANY_DATA, "[" ANY_DATA "]");
 test_node_set_and_check_result(empty_object, json_set_by_key, KEY1, NULL_STR, "{" JSON_STR(KEY1) ":" NULL_STR "}");
 test_node_set_and_check_result(empty_object, json_set_by_key, KEY2, ANY_DATA, "{" JSON_STR(KEY2) ":" ANY_DATA "}");
@@ -220,4 +227,14 @@ test_node_set_and_check_result(not_empty_array, json_set_by_id, 1, NULL_STR, "["
 test_node_set_and_check_result(not_empty_array, json_set_by_id, 2, NULL_STR, "[" SOME_NUMBER "," JSON_STR(SOME_STRING) "," NULL_STR "]");
 test_node_set_and_check_result(not_empty_object, json_set_by_key, KEY2, ANY_DATA, "{" JSON_STR(KEY1) ":" SOME_NUMBER "," JSON_STR(KEY2) ":" ANY_DATA "}");
 test_node_set_and_check_result(not_empty_object, json_set_by_key, NEW_KEY, ANY_DATA, "{" JSON_STR(KEY1) ":" SOME_NUMBER "," JSON_STR(KEY2) ":" JSON_STR(SOME_STRING) "," JSON_STR(NEW_KEY) ":" ANY_DATA "}");
+
+TEST_F(json_base, json_set_positive)
+{
+    m_object = json_init_from_str("[null]", nullptr);
+    ASSERT_NE(nullptr, m_object);
+    EXPECT_NE(nullptr, json_set(&m_object, get_child()));
+    m_child = nullptr;
+    JSON_STREQ(&m_object, m_child_str.c_str());
+}
+
 }

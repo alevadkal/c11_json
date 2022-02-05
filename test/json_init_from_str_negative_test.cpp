@@ -15,6 +15,7 @@ protected:
 };
 
 #define NOT_JSON "qwerty"
+#define JSON_STR
 
 #define json_init_from_str_negative_tests_base(str, endptr_value)                \
     TEST_F(json_init_from_str_negative_tests, json_init_from_1_##str##_negative) \
